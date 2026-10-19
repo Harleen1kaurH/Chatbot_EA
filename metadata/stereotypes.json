@@ -1,0 +1,129 @@
+{
+  "stereotypes": [
+    {
+      "stereotype": "PROC",
+      "displayName": "Business Process",
+      "view": "dbo.PROC",
+      "primaryKeyColumn": "Object_ID",
+      "identifierColumn": "Name",
+      "descriptionColumn": "Note",
+      "identifierPrefix": "PROC",
+      "attributes": [
+        { "name": "TAG", "column": "Name", "dataType": "text", "description": "Identifier of the business process, e.g. PROC12", "synonyms": ["id", "identifier", "name", "process id"] },
+        { "name": "DESCRIPTION", "column": "Note", "dataType": "text", "description": "Main text of the business process", "synonyms": ["note", "notes", "desc", "text", "details"] },
+        { "name": "OBJECT_ID", "column": "Object_ID", "dataType": "number", "description": "EA internal object ID (a number such as 495107). Not the identifier analysts type; use TAG for that.", "synonyms": ["object id", "ea id", "internal id"] },
+        { "name": "BRIEF_DESCRIPTION", "column": "Brief_Description", "dataType": "text", "description": "Short summary of the business process", "synonyms": ["summary", "short description", "overview"] },
+        { "name": "BUSINESS_PRIORITY", "column": "Business_Priority", "dataType": "text", "description": "Business priority of the process", "synonyms": ["priority", "importance"] },
+        { "name": "LINE_OF_BUSINESS", "column": "Line_of_Business", "dataType": "text", "description": "Line of business the process belongs to", "synonyms": ["lob", "business line", "program area"] },
+        { "name": "MAIN_OBJECTIVES", "column": "Main_Objectives", "dataType": "text", "description": "Main objectives of the process", "synonyms": ["objectives", "goals", "purpose"] },
+        { "name": "TARGET_AUDIENCE", "column": "Target_Audience", "dataType": "text", "description": "Intended audience of the process", "synonyms": ["audience", "users", "intended users"] },
+        { "name": "ASSUMPTIONS", "column": "Assumptions", "dataType": "text", "description": "Assumptions recorded for the process", "synonyms": ["assumption"] },
+        { "name": "ADDITIONAL_INFORMATION", "column": "Additional_Information", "dataType": "text", "description": "Additional information about the process", "synonyms": ["additional info", "extra info", "other information"] },
+        { "name": "COMMENTS", "column": "Comments", "dataType": "text", "description": "Comments on the process", "synonyms": ["comment", "remarks"] },
+        { "name": "RELEASE_NUMBER", "column": "Release_Number", "dataType": "text", "description": "Release the process belongs to, e.g. R2", "synonyms": ["release", "release no", "version release"] },
+        { "name": "DEVELOPMENT_PACKAGE", "column": "Development_Package", "dataType": "text", "description": "Development package associated with the process", "synonyms": ["dev package", "package"] },
+        { "name": "CLEARCASE_VERSION", "column": "ClearCase_Version", "dataType": "text", "description": "ClearCase version of the process document", "synonyms": ["clearcase version", "cc version"] },
+        { "name": "CLEARCASE_FOLDER_LINK", "column": "Link_to_ClearCase_Folder", "dataType": "text", "description": "Link to the ClearCase folder for the process", "synonyms": ["clearcase folder", "clearcase link", "folder link"] },
+        { "name": "MODIFIED_DATE", "column": "ModifiedDate", "dataType": "datetime", "description": "Date and time the process was last modified", "synonyms": ["last modified", "modified", "updated", "last updated", "change date"] }
+      ]
+    },
+    {
+      "stereotype": "PSTP",
+      "displayName": "Business Process Step",
+      "view": "dbo.PSTP",
+      "primaryKeyColumn": "Object_ID",
+      "identifierColumn": "Name",
+      "descriptionColumn": "Note",
+      "identifierPrefix": "PSTP",
+      "attributes": [
+        { "name": "TAG", "column": "Name", "dataType": "text", "description": "Identifier of the business process step, e.g. PSTP177", "synonyms": ["id", "identifier", "name", "step id"] },
+        { "name": "DESCRIPTION", "column": "Note", "dataType": "text", "description": "Title of the business process step, e.g. 'RP008-06.02.00 Create new File Locations'", "synonyms": ["note", "title", "desc", "text", "step name"] },
+        { "name": "OBJECT_ID", "column": "Object_ID", "dataType": "number", "description": "EA internal object ID (a number such as 495107). Not the identifier analysts type; use TAG for that.", "synonyms": ["object id", "ea id", "internal id"] },
+        { "name": "STATUS", "column": "Status", "dataType": "text", "description": "Approval status of the step, e.g. Approved", "synonyms": ["state", "approval status"] },
+        { "name": "RELEASE_NUMBER", "column": "Release_Number", "dataType": "text", "description": "Release the step belongs to, e.g. R2", "synonyms": ["release", "release no"] },
+        { "name": "TRACES_TO_UC_OR_PROC", "column": "SUC_or_PROC_Traces_To", "dataType": "flag", "observedValues": ["Yes"], "description": "Yes/No flag: whether the step traces to a System Use Case or Business Process. A flag only; never used for joins.", "synonyms": ["traces to use case", "traces to process", "has trace", "traced"] },
+        { "name": "CLEARCASE_VERSION_NUMBER", "column": "ClearCase_Version_Number", "dataType": "text", "description": "ClearCase version number of the step", "synonyms": ["clearcase version", "cc version"] }
+      ]
+    },
+    {
+      "stereotype": "UC",
+      "displayName": "System Use Case",
+      "view": "dbo.UC",
+      "primaryKeyColumn": "Object_ID",
+      "identifierColumn": "Name",
+      "descriptionColumn": "Note",
+      "identifierPrefix": "UC",
+      "attributes": [
+        { "name": "TAG", "column": "Name", "dataType": "text", "description": "Identifier of the system use case, e.g. UC45", "synonyms": ["id", "identifier", "name", "use case id"] },
+        { "name": "DESCRIPTION", "column": "Note", "dataType": "text", "description": "Main text of the system use case", "synonyms": ["note", "notes", "desc", "text", "details"] },
+        { "name": "OBJECT_ID", "column": "Object_ID", "dataType": "number", "description": "EA internal object ID (a number such as 495107). Not the identifier analysts type; use TAG for that.", "synonyms": ["object id", "ea id", "internal id"] },
+        { "name": "BRIEF_DESCRIPTION", "column": "Brief_Description", "dataType": "text", "description": "Short summary of the use case", "synonyms": ["summary", "short description", "overview"] },
+        { "name": "USER_GOAL", "column": "User_Goal", "dataType": "text", "description": "Goal the user achieves through the use case", "synonyms": ["goal", "user objective", "purpose"] },
+        { "name": "PRE_CONDITION", "column": "Pre-Condition", "dataType": "text", "description": "Conditions that must hold before the use case starts", "synonyms": ["precondition", "pre condition", "preconditions", "before"] },
+        { "name": "POST_CONDITION", "column": "Post-Condition", "dataType": "text", "description": "Conditions that hold after the use case ends", "synonyms": ["postcondition", "post condition", "postconditions", "outcome"] },
+        { "name": "STATUS", "column": "Status", "dataType": "text", "description": "Status of the use case", "synonyms": ["state", "approval status"] },
+        { "name": "FOLDER_NAME", "column": "System_Use_Case_Folder_Name", "dataType": "text", "description": "Folder the use case sits in", "synonyms": ["folder", "use case folder", "location"] },
+        { "name": "HAS_ROLE_TRACE", "column": "Role_Trace", "dataType": "flag", "description": "Yes/No flag: whether the use case traces to a role. A flag only; never used for joins.", "synonyms": ["role trace", "traces to role", "has role"] },
+        { "name": "COMMENTS", "column": "Comments", "dataType": "text", "description": "Comments on the use case", "synonyms": ["comment", "remarks"] },
+        { "name": "MODIFIED_DATE", "column": "ModifiedDate", "dataType": "datetime", "description": "Date and time the use case was last modified", "synonyms": ["last modified", "modified", "updated", "last updated", "change date"] }
+      ]
+    },
+    {
+      "stereotype": "USTP",
+      "displayName": "System Use Case Step",
+      "view": "dbo.USTP",
+      "primaryKeyColumn": "Object_ID",
+      "identifierColumn": "Name",
+      "descriptionColumn": "Note",
+      "identifierPrefix": "USTP",
+      "attributes": [
+        { "name": "TAG", "column": "Name", "dataType": "text", "description": "Identifier of the use case step, e.g. USTP7", "synonyms": ["id", "identifier", "name", "step id"] },
+        { "name": "DESCRIPTION", "column": "Note", "dataType": "text", "description": "Text of the use case step", "synonyms": ["note", "notes", "desc", "text", "step text"] },
+        { "name": "OBJECT_ID", "column": "Object_ID", "dataType": "number", "description": "EA internal object ID (a number such as 495107). Not the identifier analysts type; use TAG for that.", "synonyms": ["object id", "ea id", "internal id"] },
+        { "name": "HAS_SOLUTION_TRACE", "column": "Solution_Trace", "dataType": "flag", "description": "Yes/No flag: whether the step traces to a solution. A flag only; never used for joins.", "synonyms": ["solution trace", "traces to solution", "has solution"] },
+        { "name": "HAS_REQUIREMENT_TRACE", "column": "System_Requirement_Trace", "dataType": "flag", "description": "Yes/No flag: whether the step traces to a system requirement. A flag only; never used for joins.", "synonyms": ["requirement trace", "traces to requirement", "has requirement", "sreq trace"] },
+        { "name": "COMMENTS", "column": "Comments", "dataType": "text", "description": "Comments on the step", "synonyms": ["comment", "remarks"] }
+      ]
+    },
+    {
+      "stereotype": "SREQ",
+      "displayName": "System Requirement",
+      "view": "dbo.SREQ",
+      "primaryKeyColumn": "Object_ID",
+      "identifierColumn": "Name",
+      "descriptionColumn": "Note",
+      "identifierPrefix": "SREQ",
+      "attributes": [
+        { "name": "TAG", "column": "Name", "dataType": "text", "description": "Identifier of the system requirement, e.g. SREQ3", "synonyms": ["id", "identifier", "name", "requirement id", "sr"] },
+        { "name": "DESCRIPTION", "column": "Note", "dataType": "text", "description": "Requirement statement, e.g. 'System must display previously entered search criteria'", "synonyms": ["note", "requirement text", "statement", "desc", "text"] },
+        { "name": "OBJECT_ID", "column": "Object_ID", "dataType": "number", "description": "EA internal object ID (a number such as 495107). Not the identifier analysts type; use TAG for that.", "synonyms": ["object id", "ea id", "internal id"] },
+        { "name": "REQUIREMENT_TYPE", "column": "Requirement_Type", "dataType": "text", "description": "Type or category of the requirement", "synonyms": ["type", "category", "kind of requirement"] },
+        { "name": "POTENTIAL_ACCESS_IMPACT", "column": "Potential_Access_Impact", "dataType": "text", "observedValues": ["N"], "description": "Whether the requirement may affect access, e.g. N", "synonyms": ["access impact", "security impact", "impacts access"] },
+        { "name": "HAS_DATA_TRACE", "column": "Data_Trace", "dataType": "flag", "observedValues": ["No"], "description": "Yes/No flag: whether the requirement traces to a data element. A flag only; never used for joins.", "synonyms": ["data trace", "traces to data", "has data", "linked to data"] },
+        { "name": "COMMENTS", "column": "Comments", "dataType": "text", "description": "Comments on the requirement", "synonyms": ["comment", "remarks"] },
+        { "name": "MODIFIED_DATE", "column": "ModifiedDate", "dataType": "datetime", "description": "Date and time the requirement was last modified", "synonyms": ["last modified", "modified", "updated", "last updated", "change date"] }
+      ]
+    },
+    {
+      "stereotype": "DATA",
+      "displayName": "Data",
+      "view": "dbo.DATA",
+      "primaryKeyColumn": "Object_ID",
+      "identifierColumn": "Name",
+      "descriptionColumn": "Note",
+      "identifierPrefix": "DATA",
+      "attributes": [
+        { "name": "TAG", "column": "Name", "dataType": "text", "description": "Identifier of the data element, e.g. DATA9", "synonyms": ["id", "identifier", "name", "data id"] },
+        { "name": "DESCRIPTION", "column": "Note", "dataType": "text", "description": "Description of the data element", "synonyms": ["note", "notes", "desc", "text", "details"] },
+        { "name": "OBJECT_ID", "column": "Object_ID", "dataType": "number", "description": "EA internal object ID (a number such as 495107). Not the identifier analysts type; use TAG for that.", "synonyms": ["object id", "ea id", "internal id"] },
+        { "name": "DATATYPE", "column": "Datatype", "dataType": "text", "description": "Data type of the element", "synonyms": ["type", "data type", "format"] },
+        { "name": "LENGTH", "column": "Length", "dataType": "text", "description": "Length of the data element. Stored as text, so numeric comparisons are not supported.", "synonyms": ["size", "field length", "max length"] },
+        { "name": "DATA_VALUES", "column": "Data_Values", "dataType": "text", "description": "Allowed values for the data element", "synonyms": ["values", "allowed values", "lov", "list of values", "valid values"] },
+        { "name": "DATA_VALUES_CONTEXT", "column": "Data_Values_Context", "dataType": "text", "description": "Context of the allowed values", "synonyms": ["values context", "lov context"] },
+        { "name": "IN_LDM", "column": "In_LDM", "dataType": "text", "description": "Whether the element is in the Logical Data Model", "synonyms": ["ldm", "logical data model", "in logical model"] },
+        { "name": "STATUS", "column": "Status", "dataType": "text", "description": "Status of the data element", "synonyms": ["state", "approval status"] },
+        { "name": "COMMENTS", "column": "Comments", "dataType": "text", "description": "Comments on the data element", "synonyms": ["comment", "remarks"] }
+      ]
+    }
+  ]
+}
