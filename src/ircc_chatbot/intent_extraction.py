@@ -56,7 +56,14 @@ Rules:
 8. "contains A" is one CONTAINS_ANY filter with value ["A"].
    "contains A or B or C" is one CONTAINS_ANY filter with value ["A", "B", "C"].
    "contains A and B and C" is one CONTAINS_ALL filter with value ["A", "B", "C"].
-9. If the question can't be expressed with these query types, reply
+   Use CONTAINS_ALL only when the user joins phrases with "and", "all" or "both".
+   Never add a second filter for phrases that are already in a filter.
+9. source: use a stereotype only when the user names it, by its code or its name
+   (e.g. "use cases" -> UC). If the user names an object type that is not in the
+   list below, reply unsupported. Never pick a different stereotype instead.
+10. Filter values are only the words the user wants found in the text. Never put
+   the name of an object type, stereotype or field into a filter value.
+11. If the question can't be expressed with these query types, reply
    {"queryType": "unsupported", "reason": "<one short sentence>"}."""
 
 
