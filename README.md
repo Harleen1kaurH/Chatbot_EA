@@ -1,4 +1,4 @@
-#Chatbot: Oracle BI Replacement
+# Chatbot: Oracle BI Replacement
 
 A natural-language assistant for Functional Analysts. It turns questions about requirements in Sparx Enterprise Architect into SQL against the read-only SQL Azure views.
 
