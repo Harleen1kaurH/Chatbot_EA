@@ -1,7 +1,7 @@
 """Check the metadata files before a deploy.
 
-    PYTHONPATH=src python3 -m ircc_chatbot.check_metadata
-    PYTHONPATH=src python3 -m ircc_chatbot.check_metadata --metadata-dir /path/to/metadata
+    PYTHONPATH=src python3 -m chatbot.check_metadata
+    PYTHONPATH=src python3 -m chatbot.check_metadata --metadata-dir /path/to/metadata
 
 What: runs exactly the checks the application runs at startup, without starting it.
 Exit code: 0 if the metadata is valid, 1 if not (the error names the file and field).

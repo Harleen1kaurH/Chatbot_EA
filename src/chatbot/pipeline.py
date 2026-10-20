@@ -44,8 +44,8 @@ def handle_intent(raw_intent: Any, metadata: Metadata | None = None) -> Result:
 def handle_question(question: str, llm: LLMCall, metadata: Metadata | None = None) -> Result:
     """Answer an analyst's question end to end: question -> LLM -> intent -> SQL.
 
-    `llm` is any function (system_prompt, question) -> reply text, so the IRCC
-    internal LLM, Ollama, or a test fake can be plugged in. The LLM's reply is never
+    `llm` is any function (system_prompt, question) -> reply text, so the production
+    LLM, Ollama, or a test fake can be plugged in. The LLM's reply is never
     trusted: it goes through handle_intent, which validates it before building SQL.
     Raises IntentExtractionError (bad reply) or IntentError (invalid intent).
     """

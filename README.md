@@ -8,7 +8,7 @@ A natural-language assistant for Functional Analysts. It turns questions about r
 
 Phase 1, Part 1: metadata, intent contract, identifier resolver and SQL builder for single-stereotype lookups and searches. Intent extraction works with a local Ollama model for trying things out; the production LLM is not chosen yet and plugs in the same way. There is no database access, so the output is SQL to review and run in SSMS.
 
-Not built yet: relationship / traceability queries (`relationships.json`, `canonicalpaths.json`, `glossary.json`), SQL execution, and the integration into the IRCC chatbot.
+Not built yet: relationship / traceability queries (`relationships.json`, `canonicalpaths.json`, `glossary.json`), SQL execution, and the integration into the host chatbot.
 
 ## How it works
 
@@ -32,19 +32,19 @@ Every source file starts with a header explaining what it does, how and why, and
 | `metadata/stereotypes.json` | One entry per stereotype: view, primary key column, identifier and description attributes, identifier prefix and aliases, business attributes. |
 | `metadata/operators.json` | Filter operators: `EQUALS`, `CONTAINS_ANY`, `CONTAINS_ALL`. |
 | `metadata/intents.json` | Query types (`stereotypeSearch`, `describeStereotype`), their fields (and which are required) and example questions. Also used to build the LLM prompt and to validate intents. |
-| `src/ircc_chatbot/metadata_loader.py` | Reads all metadata, runs the checks, builds frozen objects (`Metadata`, `Stereotype`, `Attribute`, `Operator`, `QueryType`). Only reads and builds; no rules. |
-| `src/ircc_chatbot/metadata_checks.py` | Every rule the metadata files must follow. Used at startup and by `check_metadata`. |
-| `src/ircc_chatbot/check_metadata.py` | Pre-deploy command that runs the metadata checks without starting the chatbot. |
-| `src/ircc_chatbot/intent.py` | The intent contract. Checks a raw intent and turns it into frozen typed objects, or rejects it with a clear message. |
-| `src/ircc_chatbot/identifier_resolver.py` | `SREQ 123`, `SREQ-0123`, `123` → `SREQ123`. |
-| `src/ircc_chatbot/sql_builder.py` | Builds parameterized T-SQL plus a readable copy for review. |
-| `src/ircc_chatbot/describe.py` | Answers "what columns does X have" from metadata, with business names only. |
-| `src/ircc_chatbot/intent_extraction.py` | Builds the LLM prompt from metadata and parses the LLM's reply. The LLM is passed in as a function. |
-| `src/ircc_chatbot/intent_schema.py` | Generates a JSON Schema for intents from metadata. Optional: only useful if the LLM supports structured output (Ollama does). |
-| `src/ircc_chatbot/ollama_client.py` | Calls a local Ollama model as the LLM (schema-constrained, temperature 0). |
-| `src/ircc_chatbot/ask.py` | Command-line tool: ask a question, see the intent and the SQL. |
-| `src/ircc_chatbot/pipeline.py` | `handle_intent(intent)` and `handle_question(question, llm)`. |
-| `src/ircc_chatbot/errors.py` | The error types (see [Errors](#errors)). |
+| `src/chatbot/metadata_loader.py` | Reads all metadata, runs the checks, builds frozen objects (`Metadata`, `Stereotype`, `Attribute`, `Operator`, `QueryType`). Only reads and builds; no rules. |
+| `src/chatbot/metadata_checks.py` | Every rule the metadata files must follow. Used at startup and by `check_metadata`. |
+| `src/chatbot/check_metadata.py` | Pre-deploy command that runs the metadata checks without starting the chatbot. |
+| `src/chatbot/intent.py` | The intent contract. Checks a raw intent and turns it into frozen typed objects, or rejects it with a clear message. |
+| `src/chatbot/identifier_resolver.py` | `SREQ 123`, `SREQ-0123`, `123` → `SREQ123`. |
+| `src/chatbot/sql_builder.py` | Builds parameterized T-SQL plus a readable copy for review. |
+| `src/chatbot/describe.py` | Answers "what columns does X have" from metadata, with business names only. |
+| `src/chatbot/intent_extraction.py` | Builds the LLM prompt from metadata and parses the LLM's reply. The LLM is passed in as a function. |
+| `src/chatbot/intent_schema.py` | Generates a JSON Schema for intents from metadata. Optional: only useful if the LLM supports structured output (Ollama does). |
+| `src/chatbot/ollama_client.py` | Calls a local Ollama model as the LLM (schema-constrained, temperature 0). |
+| `src/chatbot/ask.py` | Command-line tool: ask a question, see the intent and the SQL. |
+| `src/chatbot/pipeline.py` | `handle_intent(intent)` and `handle_question(question, llm)`. |
+| `src/chatbot/errors.py` | The error types (see [Errors](#errors)). |
 
 `src/` holds the code and `metadata/` the data. Commands need `PYTHONPATH=src` (see [Running it](#running-it)).
 
@@ -152,7 +152,7 @@ ORDER BY [Name], [Object_ID];
 
 ## Running it
 
-Requires Python 3.10+. No runtime dependencies. Run everything from the `IRCC_Chatbot` folder.
+Requires Python 3.10+. No runtime dependencies. Run everything from the project folder.
 
 Python is for now; the system will move to C#. The code deliberately uses only plain language features (classes, dictionaries, string building) so it ports directly, and the metadata files carry over unchanged.
 
@@ -161,8 +161,8 @@ Python is for now; the system will move to C#. The code deliberately uses only p
 Run this after editing any file in `metadata/`, and before every deploy. It runs the same checks as startup and exits with 1 if anything is wrong:
 
 ```bash
-PYTHONPATH=src python3 -m ircc_chatbot.check_metadata
-PYTHONPATH=src python3 -m ircc_chatbot.check_metadata --metadata-dir /path/to/metadata
+PYTHONPATH=src python3 -m chatbot.check_metadata
+PYTHONPATH=src python3 -m chatbot.check_metadata --metadata-dir /path/to/metadata
 ```
 
 It prints the version of each file and the number of stereotypes, operators and query types.
@@ -171,7 +171,7 @@ It prints the version of each file and the number of stereotypes, operators and 
 
 ```bash
 PYTHONPATH=src python3 -c '
-from ircc_chatbot import handle_intent
+from chatbot import handle_intent
 q = handle_intent({"queryType": "stereotypeSearch", "source": "SREQ",
                    "filters": [{"operator": "CONTAINS_ANY", "value": ["passport", "visa"]}]})
 print(q.readable_sql)'
@@ -180,7 +180,7 @@ print(q.readable_sql)'
 From code:
 
 ```python
-from ircc_chatbot import handle_intent
+from chatbot import handle_intent
 
 q = handle_intent({"queryType": "stereotypeSearch", "source": "SREQ", "anchor": {"identifier": "SREQ 123"}})
 print(q.readable_sql)   # for review; the application runs q.sql with q.params
@@ -192,9 +192,9 @@ Ollama runs the LLM on your own machine; nothing leaves it.
 
 ```
 ollama pull qwen2.5:7b                      # once; any instruction-following model works
-PYTHONPATH=src python3 -m ircc_chatbot.ask "What is SREQ 123?"
-PYTHONPATH=src python3 -m ircc_chatbot.ask --model llama3.1:8b "Give me use cases which contain DOB"
-PYTHONPATH=src python3 -m ircc_chatbot.ask --show-prompt    # see exactly what the LLM is told
+PYTHONPATH=src python3 -m chatbot.ask "What is SREQ 123?"
+PYTHONPATH=src python3 -m chatbot.ask --model llama3.1:8b "Give me use cases which contain DOB"
+PYTHONPATH=src python3 -m chatbot.ask --show-prompt    # see exactly what the LLM is told
 ```
 
 It prints the intent the LLM produced, then the SQL (or the attribute list). If the intent breaks a rule, it says why and builds no SQL. Defaults can be set with `OLLAMA_MODEL` and `OLLAMA_HOST`.
@@ -208,15 +208,15 @@ Python only finds the package if `src/` is on its search path. To drop `PYTHONPA
 
 ## Deployment notes
 
-The service will run 24/7 inside the IRCC chatbot and be updated rarely.
+The service will run 24/7 inside the host chatbot and be updated rarely.
 
 - **Load metadata at startup.** `load_metadata()` only runs when first called. Call it once in the service's startup code so a bad metadata file stops the service at boot, not on the first user's question.
-- **Check metadata before deploying.** Add `python -m ircc_chatbot.check_metadata` as a step in the deploy pipeline.
+- **Check metadata before deploying.** Add `python -m chatbot.check_metadata` as a step in the deploy pipeline.
 - **Restart after changing metadata.** It is read once and cached for the life of the process.
-- **Structured output is optional.** If the IRCC LLM supports a JSON-schema option, pass it `build_intent_schema(md)`. If not, `intent.py` still validates every reply.
+- **Structured output is optional.** If the production LLM supports a JSON-schema option, pass it `build_intent_schema(md)`. If not, `intent.py` still validates every reply.
 - **Concurrency.** The pipeline shares nothing that changes between requests (metadata is frozen and read-only), so parallel requests are safe. To plan for:
   - `ollama_client.py` uses blocking `urllib`. In an async host (asyncio / FastAPI `async def`), run the LLM call in a worker thread, or one slow answer blocks every user.
-  - The LLM is the bottleneck. Find out how many parallel requests the IRCC LLM accepts and how fast it answers.
+  - The LLM is the bottleneck. Find out how many parallel requests the production LLM accepts and how fast it answers.
   - When SQL execution is added: a connection pool, a query timeout and row limit, and the planned read-only login.
 
 ## Conventions

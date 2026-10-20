@@ -1,8 +1,8 @@
 """Try a question from the terminal.
 
-    PYTHONPATH=src python3 -m ircc_chatbot.ask "What is SREQ 123?"
-    PYTHONPATH=src python3 -m ircc_chatbot.ask --model llama3.1:8b "Give me column names of SREQ"
-    PYTHONPATH=src python3 -m ircc_chatbot.ask --show-prompt
+    PYTHONPATH=src python3 -m chatbot.ask "What is SREQ 123?"
+    PYTHONPATH=src python3 -m chatbot.ask --model llama3.1:8b "Give me column names of SREQ"
+    PYTHONPATH=src python3 -m chatbot.ask --show-prompt
 
 Prints the intent the LLM produced, then the SQL (or the attribute list).
 Exit code: 0 on success, 1 if the question couldn't be turned into SQL.

@@ -11,7 +11,7 @@ Uses Ollama's chat API (POST {host}/api/chat) with:
 Only the Python standard library is used. Defaults can be set with the
 OLLAMA_HOST and OLLAMA_MODEL environment variables.
 
-Why: Ollama is the local stand-in for IRCC's internal LLM during development.
+Why: Ollama is the local stand-in for the production LLM during development.
 It is wrapped in the same (system_prompt, question) -> text function shape as
 any other LLM, so replacing it later means writing one new function, not
 changing the pipeline.

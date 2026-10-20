@@ -10,7 +10,7 @@ token that would break it. The meaning of each field comes from the system
 prompt; the schema only limits what can be written.
 
 This is helpful but not necessary. Ollama supports structured output hence this is useful. If the
-IRCC Chatbot supports structured output then this file can be used, if not then it can be deleted.
+production LLM supports structured output then this file can be used, if not then it can be deleted.
 The code works fine without it.
 
 The schema covers shape only. Rules that depend on combinations (e.g. COMMENTS

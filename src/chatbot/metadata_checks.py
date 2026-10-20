@@ -6,7 +6,7 @@ builds nothing; metadata_loader.py builds the objects only after these checks pa
 
 The same checks run in two places:
   - at application startup (load_metadata), so the service never runs on bad metadata
-  - before a deploy:  PYTHONPATH=src python3 -m ircc_chatbot.check_metadata
+  - before a deploy:  PYTHONPATH=src python3 -m chatbot.check_metadata
 
 Why so many checks for files we write ourselves: JSON has no compiler, and most
 mistakes don't crash, they give wrong answers. The checks fall into groups:
