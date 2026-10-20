@@ -1,0 +1,29 @@
+{
+  "version": "0.1.0",
+  "operators": [
+    {
+      "operator": "EQUALS",
+      "description": "The attribute's value is exactly the given value.",
+      "synonyms": ["equals", "is", "is equal to", "="],
+      "operandCount": "ONE",
+      "appliesTo": ["text", "number", "flag"],
+      "columnNameRequired": true
+    },
+    {
+      "operator": "CONTAINS_ANY",
+      "description": "The attribute's text contains at least one of the given phrases. Use it for a single phrase too, as a one-item list.",
+      "synonyms": ["contains", "containing", "mentions", "includes", "has the word", "contains any", "contains either", "contains X or Y", "mentions any of"],
+      "operandCount": "MANY",
+      "appliesTo": ["text"],
+      "columnNameRequired": false
+    },
+    {
+      "operator": "CONTAINS_ALL",
+      "description": "The attribute's text contains every one of the given phrases.",
+      "synonyms": ["contains all", "contains both", "contains X and Y", "mentions all of"],
+      "operandCount": "MANY",
+      "appliesTo": ["text"],
+      "columnNameRequired": false
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "version": "0.1.0",
+  "queryTypes": [
+    {
+      "queryType": "stereotypeSearch",
+      "description": "Look up or search objects of one stereotype. A lookup finds one object by its identifier (has anchor). A search finds objects matching filters (has filters). Exactly one of anchor or filters must be present.",
+      "fields": {
+        "queryType": { "required": true, "description": "Always \"stereotypeSearch\"." },
+        "source": { "required": true, "description": "Stereotype code, e.g. SREQ." },
+        "anchor": { "required": false, "description": "Lookup only. {\"identifier\": \"<identifier exactly as the user typed it>\"}, e.g. {\"identifier\": \"SREQ 123\"}." },
+        "columns": { "required": false, "description": "Attribute names the user asked to see. Leave out when the user names no fields." },
+        "filters": { "required": false, "description": "Search only. List of {\"attribute\", \"operator\", \"value\"}. Leave attribute out of a CONTAINS_ANY or CONTAINS_ALL filter when the user names no field." }
+      },
+      "examples": [
+        {
+          "question": "What is SREQ 123?",
+          "intent": { "queryType": "stereotypeSearch", "source": "SREQ", "anchor": { "identifier": "SREQ 123" } }
+        },
+        {
+          "question": "Give me Data tag, data status for DATA-123",
+          "intent": { "queryType": "stereotypeSearch", "source": "DATA", "anchor": { "identifier": "DATA-123" }, "columns": ["TAG", "STATUS"] }
+        },
+        {
+          "question": "Give me the SREQs that contain 'Date of Birth' or 'Birth Date' or 'DOB'",
+          "intent": { "queryType": "stereotypeSearch", "source": "SREQ", "filters": [ { "operator": "CONTAINS_ANY", "value": ["Date of Birth", "Birth Date", "DOB"] } ] }
+        },
+        {
+          "question": "Give me use cases whose comments contain 'DOB'",
+          "intent": { "queryType": "stereotypeSearch", "source": "UC", "filters": [ { "attribute": "COMMENTS", "operator": "CONTAINS_ANY", "value": ["DOB"] } ] }
+        },
+        {
+          "question": "Give me the SREQs that mention both 'passport' and 'expiry'",
+          "intent": { "queryType": "stereotypeSearch", "source": "SREQ", "filters": [ { "operator": "CONTAINS_ALL", "value": ["passport", "expiry"] } ] }
+        }
+      ]
+    },
+    {
+      "queryType": "describeStereotype",
+      "description": "List the business attributes (fields) available for a stereotype. Answered from metadata; no SQL is built.",
+      "fields": {
+        "queryType": { "required": true, "description": "Always \"describeStereotype\"." },
+        "source": { "required": true, "description": "Stereotype code, e.g. SREQ." }
+      },
+      "examples": [
+        {
+          "question": "Give me column names of SREQ",
+          "intent": { "queryType": "describeStereotype", "source": "SREQ" }
+        }
+      ]
+    }
+  ]
+}
