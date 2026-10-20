@@ -3,7 +3,7 @@
     {
       "stereotype": "PROC",
       "displayName": "Business Process",
-      "view": "dbo.PROC",
+      "view": "PROC",
       "primaryKeyColumn": "Object_ID",
       "identifierAttribute": "TAG",
       "descriptionAttribute": "DESCRIPTION",
@@ -30,7 +30,7 @@
     {
       "stereotype": "PSTP",
       "displayName": "Business Process Step",
-      "view": "dbo.PSTP",
+      "view": "PSTP",
       "primaryKeyColumn": "Object_ID",
       "identifierAttribute": "TAG",
       "descriptionAttribute": "DESCRIPTION",
@@ -48,7 +48,7 @@
     {
       "stereotype": "UC",
       "displayName": "System Use Case",
-      "view": "dbo.UC",
+      "view": "UC",
       "primaryKeyColumn": "Object_ID",
       "identifierAttribute": "TAG",
       "descriptionAttribute": "DESCRIPTION",
@@ -71,7 +71,7 @@
     {
       "stereotype": "USTP",
       "displayName": "System Use Case Step",
-      "view": "dbo.USTP",
+      "view": "USTP",
       "primaryKeyColumn": "Object_ID",
       "identifierAttribute": "TAG",
       "descriptionAttribute": "DESCRIPTION",
@@ -88,7 +88,7 @@
     {
       "stereotype": "SREQ",
       "displayName": "System Requirement",
-      "view": "dbo.SREQ",
+      "view": "SREQ",
       "primaryKeyColumn": "Object_ID",
       "identifierAttribute": "TAG",
       "descriptionAttribute": "DESCRIPTION",
@@ -107,7 +107,7 @@
     {
       "stereotype": "DATA",
       "displayName": "Data",
-      "view": "dbo.DATA",
+      "view": "DATA",
       "primaryKeyColumn": "Object_ID",
       "identifierAttribute": "TAG",
       "descriptionAttribute": "DESCRIPTION",
