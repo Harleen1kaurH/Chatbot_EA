@@ -33,6 +33,11 @@ _VIEW_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 FILES = ("stereotypes.json", "operators.json", "intents.json")
 
+# The LLM writes this in place of a stereotype code or attribute name when the user asks
+# for an object type or field that isn't supported. Reserved, so no real stereotype or
+# attribute may use it.
+UNSUPPORTED_NAME = "UNSUPPORTED"
+
 
 def check_metadata_files(files: dict[str, Any]) -> None:
     """Run every check. files maps each file name in FILES to its parsed JSON.
@@ -102,6 +107,8 @@ def _check_stereotypes(data: dict[str, Any]) -> None:
         where = f"stereotypes.json: {code}"
         if not _STEREOTYPE_CODE.match(code):
             raise MetadataError(f"{where}: stereotype code must be upper-case letters/digits")
+        if code == UNSUPPORTED_NAME:
+            raise MetadataError(f"{where}: '{UNSUPPORTED_NAME}' is reserved and can't be a stereotype code")
         if code in seen:
             raise MetadataError(f"{where}: stereotype listed twice")
         seen.add(code)
@@ -159,6 +166,8 @@ def _check_attribute(a: Any, index: int, where: str) -> dict[str, Any]:
     # The name is written into SQL as "AS <name>" without quoting, so only safe characters are allowed.
     if not _ATTRIBUTE_NAME.match(name):
         raise MetadataError(f"{awhere}: name must be UPPER_SNAKE_CASE")
+    if name == UNSUPPORTED_NAME:
+        raise MetadataError(f"{awhere}: '{UNSUPPORTED_NAME}' is reserved and can't be an attribute name")
     # Columns are written inside [...]; a ']' would end the quoting early.
     column = _require(a, "column", str, awhere)
     if "]" in column:

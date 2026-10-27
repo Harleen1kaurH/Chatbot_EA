@@ -24,6 +24,7 @@ from typing import Any, Union
 
 from .errors import IntentError
 from .identifier_resolver import resolve_identifier
+from .metadata_checks import UNSUPPORTED_NAME
 from .metadata_loader import Attribute, Metadata, Operator, Stereotype
 
 MAX_VALUES = 20
@@ -135,7 +136,14 @@ def parse_intent(raw: Any, metadata: Metadata) -> Intent:
 
 
 def _stereotype(source: Any, metadata: Metadata) -> Stereotype:
-    """Return the Stereotype named by `source` (case-insensitive), or raise IntentError listing the allowed codes."""
+    """Return the Stereotype named by `source` (case-insensitive), or raise IntentError listing the allowed codes.
+
+    "UNSUPPORTED" is what the LLM writes when the user asked about an object type that
+    isn't in stereotypes.json (e.g. Solutions); it is always an error.
+    """
+    if isinstance(source, str) and source.strip().upper() == UNSUPPORTED_NAME:
+        supported = ", ".join(f"{st.display_name} ({st.code})" for st in metadata.stereotypes.values())
+        raise IntentError(f"The question asks about an object type that isn't supported. Supported: {supported}.")
     stereotype = metadata.stereotypes.get(source.strip().upper()) if isinstance(source, str) else None
     if stereotype is None:
         raise IntentError(f"Unknown stereotype {source!r}. Allowed: {sorted(metadata.stereotypes)}.")
@@ -146,8 +154,14 @@ def _attribute(name: Any, stereotype: Stereotype) -> Attribute:
     """Return the attribute `name` of `stereotype` (case-insensitive), or raise IntentError.
 
     The error lists the stereotype's real attribute names, which helps if the
-    message is sent back to the LLM to retry.
+    message is sent back to the LLM to retry. "UNSUPPORTED" is what the LLM writes
+    when the user asked for a field this stereotype doesn't have; it is always an error.
     """
+    if isinstance(name, str) and name.strip().upper() == UNSUPPORTED_NAME:
+        raise IntentError(
+            f"The question asks for a field that {stereotype.code} ({stereotype.display_name}) doesn't have. "
+            f"Available attributes: {', '.join(stereotype.attribute_names)}."
+        )
     attr = stereotype.attribute(name.strip().upper()) if isinstance(name, str) else None
     if attr is None:
         raise IntentError(

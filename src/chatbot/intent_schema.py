@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from .intent_extraction import UNSUPPORTED
+from .metadata_checks import UNSUPPORTED_NAME
 from .metadata_loader import Metadata
 
 
@@ -37,8 +38,11 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
     the metadata. The unsupported shape is needed because the schema forces a valid
     shape: without it, an unanswerable question would be forced into a made-up search.
     """
-    stereotypes = sorted(metadata.stereotypes)
-    attributes = sorted({a.name for st in metadata.stereotypes.values() for a in st.attributes})
+    # UNSUPPORTED is offered where the model chooses the stereotype and the fields, so it
+    # can say "not in the list" instead of being forced to pick the closest wrong one.
+    # intent.py turns it into an error.
+    stereotypes = sorted(metadata.stereotypes) + [UNSUPPORTED_NAME]
+    attributes = sorted({a.name for st in metadata.stereotypes.values() for a in st.attributes}) + [UNSUPPORTED_NAME]
     operators = sorted(metadata.operators)
 
     text = {"type": "string", "minLength": 1}

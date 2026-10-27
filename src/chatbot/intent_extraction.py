@@ -48,7 +48,8 @@ Rules:
 2. Never write SQL. Never mention database tables, views or column names.
 3. Use only the query types, stereotype codes, attribute names and operators listed below.
 4. anchor.identifier: copy the identifier exactly as the user typed it (e.g. "SREQ 123", "DATA-123").
-5. columns: include only when the user names the fields they want; otherwise leave it out.
+5. columns: include whenever the user names fields to see, in lookups and in searches;
+   otherwise leave it out.
 6. Filter values: copy exactly the words or phrases the user typed. Never add synonyms,
    similar words, spelling variants or abbreviations of your own.
 7. CONTAINS_ANY / CONTAINS_ALL: leave out "attribute" when the user does not name a field;
@@ -60,10 +61,13 @@ Rules:
    Never add a second filter for phrases that are already in a filter.
 9. source: use a stereotype only when the user names it, by its code or its name
    (e.g. "use cases" -> UC). If the user names an object type that is not in the
-   list below, reply unsupported. Never pick a different stereotype instead.
+   list below, write "source": "UNSUPPORTED". Never pick a different stereotype instead.
 10. Filter values are only the words the user wants found in the text. Never put
    the name of an object type, stereotype or field into a filter value.
-11. If the question can't be expressed with these query types, reply
+11. If the user asks to see or filter on a field that the stereotype doesn't have,
+   write "UNSUPPORTED" as that attribute name (in columns, or as the filter's attribute).
+   Never pick a different field instead.
+12. If the question can't be expressed with these query types, reply
    {"queryType": "unsupported", "reason": "<one short sentence>"}."""
 
 
