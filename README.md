@@ -104,7 +104,10 @@ Each query type lists its `fields`, each with `"required": true/false`. These ar
 `intent.py` rejects an intent (with `IntentError`, before any SQL is built) when:
 
 - `queryType` is missing or unknown, a required field is missing, or a field isn't allowed for that query type;
-- `source`, an attribute or an operator is unknown (names are case-insensitive);
+- `source`, an attribute or an operator is unknown (names are case-insensitive), or an attribute exists but not on this stereotype;
+- `source` is `"UNSUPPORTED"`: the LLM writes this when the user asks about an object type that isn't in `stereotypes.json` (e.g. Solutions). The error lists the supported types;
+- an attribute is `"UNSUPPORTED"`: the LLM writes this (in `columns` or a filter's `attribute`) when the user asks for a field the stereotype doesn't have;
+- (`UNSUPPORTED` is a reserved name, so no real stereotype or attribute can use it. The schema offers it in the `source`, `columns` and filter `attribute` lists, so the model is never forced to pick the closest wrong name.)
 - a `stereotypeSearch` has both `anchor` and `filters`, or neither;
 - `columns` is empty or lists an attribute twice;
 - an operator is used on the wrong data type, or `EQUALS` has no attribute;
