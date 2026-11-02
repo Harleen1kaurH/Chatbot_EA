@@ -8,7 +8,7 @@
         "queryType": { "required": true, "description": "Always \"stereotypeSearch\"." },
         "source": { "required": true, "description": "Stereotype code, e.g. SREQ." },
         "anchor": { "required": false, "description": "Lookup only. {\"identifier\": \"<identifier exactly as the user typed it>\"}, e.g. {\"identifier\": \"SREQ 123\"}." },
-        "columns": { "required": false, "description": "Attribute names the user asked to see. Leave out when the user names no fields." },
+        "columns": { "required": false, "description": "Attribute names the user asked to see, for a lookup or a search. Leave out when the user names no fields." },
         "filters": { "required": false, "description": "Search only. List of {\"attribute\", \"operator\", \"value\"}. Leave attribute out of a CONTAINS_ANY or CONTAINS_ALL filter when the user names no field." }
       },
       "examples": [
@@ -31,6 +31,10 @@
         {
           "question": "Give me the SREQs that mention both 'passport' and 'expiry'",
           "intent": { "queryType": "stereotypeSearch", "source": "SREQ", "filters": [ { "operator": "CONTAINS_ALL", "value": ["passport", "expiry"] } ] }
+        },
+        {
+          "question": "Give me the pre-conditions of use cases that mention both 'name' and 'DOB'",
+          "intent": { "queryType": "stereotypeSearch", "source": "UC", "columns": ["PRE_CONDITION"], "filters": [ { "operator": "CONTAINS_ALL", "value": ["name", "DOB"] } ] }
         }
       ]
     },
