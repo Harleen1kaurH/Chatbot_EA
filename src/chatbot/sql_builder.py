@@ -1,11 +1,16 @@
-"""Build T-SQL from a validated StereotypeSearchIntent. No LLM is involved.
+"""Build T-SQL from a validated intent. No LLM is involved.
 
-What: build_sql() returns a BuiltQuery: parameterized SQL, its parameter values,
-and a readable copy with the values filled in.
+What: two builders, both returning a BuiltQuery: parameterized SQL, its parameter
+values, and a readable copy with the values filled in.
+    build_sql(intent)                       stereotypeSearch: one view
+    build_relationship_sql(intent, plan)    relationship: the planner's route, joined through t_connector
 
 How: names come from the metadata, values become @p1, @p2 ... parameters, and the
 statement is assembled from a fixed template:
     SELECT <columns> FROM <view> WHERE <conditions AND-ed> ORDER BY <identifier>, <primary key>
+For a relationship, each hop of the plan adds two joins (the connector, then the
+next view), and the SELECT lists every stereotype's identifier along the route
+followed by the target's columns; see build_relationship_sql.
 
 Safety rules:
   * View and column names come only from metadata and are always bracket-quoted.
@@ -26,7 +31,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .intent import Filter, StereotypeSearchIntent
+from .intent import Filter, RelationshipIntent, StereotypeSearchIntent
+from .planner import FORWARD, Plan
+
+# t_connector holds every link drawn in EA. Its name and columns are the same for every
+# relationship, so they live here rather than in relationships.json.
+CONNECTOR_TABLE = "t_connector"
+CONNECTOR_START = "Start_Object_ID"  # the object the link was drawn from
+CONNECTOR_END = "End_Object_ID"  # the object the link was drawn to
 
 
 @dataclass(frozen=True)
@@ -95,9 +107,84 @@ def build_sql(intent: StereotypeSearchIntent) -> BuiltQuery:
     return BuiltQuery(sql=sql, params=params.values, readable_sql=_inline(sql, params.values))
 
 
-def _condition(f: Filter, params: _Params) -> str:
+def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery:
+    """Turn a validated relationship intent and its plan into SQL.
+
+    Aliases are by position along the route: s0 is the question's source, s1 the next
+    stereotype, ... sN the target; c1 ... cN are the connectors between them. Position,
+    not stereotype code, so a route could visit the same view twice without a clash.
+
+    Each hop adds two joins. Forward (walking the way the link was drawn):
+        JOIN [t_connector] c1 ON c1.[Start_Object_ID] = s0.[Object_ID]
+        JOIN [USTP] s1        ON s1.[Object_ID] = c1.[End_Object_ID]
+    Backward swaps Start and End. Every join is INNER for now: a row is returned only
+    if it reaches the target.
+
+    SELECT DISTINCT lists each stereotype's identifier in route order (UC_TAG,
+    USTP_TAG, ...), then the target's other columns (DATA_DESCRIPTION, ...). DISTINCT
+    because the same two objects can be linked by more than one connector. The anchor
+    is matched on s0; each filter on the alias of its stereotype (s0 or sN). ORDER BY
+    is the identifier columns in route order; identifiers are unique per stereotype,
+    so the order is stable, and DISTINCT requires ORDER BY columns to be selected.
+    """
+    params = _Params()
+    stereotypes = plan.stereotypes
+    last = len(stereotypes) - 1
+    aliases = {0: "s0", last: f"s{last}"}
+
+    tags = _unique_names([f"{st.code}_{st.identifier_attribute.name}" for st in stereotypes])
+    select = [f"s{i}.{quote_identifier(st.identifier_attribute.column)} AS {tags[i]}" for i, st in enumerate(stereotypes)]
+    target = stereotypes[last]
+    for attr in intent.columns:
+        if attr != target.identifier_attribute:
+            select.append(f"s{last}.{quote_identifier(attr.column)} AS {target.code}_{attr.name}")
+
+    lines = [f"FROM {quote_identifier(stereotypes[0].view)} s0"]
+    for i, hop in enumerate(plan.hops, start=1):
+        here, there = (CONNECTOR_START, CONNECTOR_END) if hop.direction == FORWARD else (CONNECTOR_END, CONNECTOR_START)
+        prev, nxt = hop.from_stereotype, hop.to_stereotype
+        lines.append(
+            f"JOIN {quote_identifier(CONNECTOR_TABLE)} c{i} "
+            f"ON c{i}.{quote_identifier(here)} = s{i - 1}.{quote_identifier(prev.primary_key_column)}"
+        )
+        lines.append(
+            f"JOIN {quote_identifier(nxt.view)} s{i} "
+            f"ON s{i}.{quote_identifier(nxt.primary_key_column)} = c{i}.{quote_identifier(there)}"
+        )
+
+    conditions = []
+    if intent.identifier is not None:
+        conditions.append(
+            f"s0.{quote_identifier(intent.source.identifier_attribute.column)} = {params.add(intent.identifier)}"
+        )
+    for rf in intent.filters:
+        alias = aliases[0] if rf.stereotype.code == intent.source.code else aliases[last]
+        conditions.append(_condition(rf.filter, params, alias))
+
+    sql = (
+        "SELECT DISTINCT " + ",\n       ".join(select) + "\n"
+        + "\n".join(lines) + "\n"
+        + f"WHERE {' AND '.join(conditions)}\n"
+        + f"ORDER BY {', '.join(tags)};"
+    )
+    return BuiltQuery(sql=sql, params=params.values, readable_sql=_inline(sql, params.values))
+
+
+def _unique_names(names: list[str]) -> list[str]:
+    """Make column aliases unique: a stereotype seen a second time on the route gets _2, then _3, ..."""
+    seen: dict[str, int] = {}
+    result = []
+    for name in names:
+        seen[name] = seen.get(name, 0) + 1
+        result.append(name if seen[name] == 1 else f"{name}_{seen[name]}")
+    return result
+
+
+def _condition(f: Filter, params: _Params, alias: str | None = None) -> str:
     """Turn one Filter into one SQL condition string.
 
+    alias (relationship queries only) prefixes the column, e.g. s3.[Note]; stereotype
+    searches pass none, so their SQL is unchanged.
     EQUALS -> [col] = @pN (converted to int for number attributes).
     CONTAINS_ANY / CONTAINS_ALL -> ([col] LIKE @p1 OR/AND [col] LIKE @p2 ...), in
     parentheses so it combines correctly with the other filters' AND.
@@ -105,6 +192,8 @@ def _condition(f: Filter, params: _Params) -> str:
     skipped, because skipping a filter would silently return too many rows.
     """
     column = quote_identifier(f.attribute.column)
+    if alias:  # relationship queries join several views, so the column needs its view's alias
+        column = f"{alias}.{column}"
     op = f.operator.name
 
     if op == "EQUALS":

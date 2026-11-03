@@ -6,6 +6,7 @@
 What: the two functions callers use. Each step lives in its own module; this
 file only calls them in order:
     extract_intent (LLM) -> parse_intent (validate) -> build_sql / describe_stereotype
+    relationship intents: parse_intent -> plan_route (planner) -> build_relationship_sql
 
 How: metadata is loaded once (cached) unless the caller passes its own copy.
 
@@ -18,10 +19,11 @@ from __future__ import annotations
 from typing import Any, Union
 
 from .describe import DescribeResult, describe_stereotype
-from .intent import DescribeStereotypeIntent, parse_intent
+from .intent import DescribeStereotypeIntent, RelationshipIntent, parse_intent
 from .intent_extraction import LLMCall, extract_intent
 from .metadata_loader import Metadata, load_metadata
-from .sql_builder import BuiltQuery, build_sql
+from .planner import plan_route
+from .sql_builder import BuiltQuery, build_relationship_sql, build_sql
 
 Result = Union[BuiltQuery, DescribeResult]
 
@@ -38,6 +40,8 @@ def handle_intent(raw_intent: Any, metadata: Metadata | None = None) -> Result:
     intent = parse_intent(raw_intent, md)
     if isinstance(intent, DescribeStereotypeIntent):
         return describe_stereotype(intent)
+    if isinstance(intent, RelationshipIntent):
+        return build_relationship_sql(intent, plan_route(intent, md))  # plan_route raises RouteError if no route fits
     return build_sql(intent)
 
 

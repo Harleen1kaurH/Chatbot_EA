@@ -5,7 +5,8 @@ What: one exception type per kind of failure, all under ChatbotError:
     ChatbotError
     ├── MetadataError          bad metadata file            -> refuse to start
     ├── IntentError            intent breaks the contract   -> tell the user / retry the LLM
-    │   └── IdentifierError    identifier can't be resolved
+    │   ├── IdentifierError    identifier can't be resolved
+    │   └── RouteError         no approved route fits a relationship question
     └── IntentExtractionError  LLM reply unusable or LLM unreachable
 
 How: the classes add no behaviour; their type is the information. `except
@@ -41,6 +42,15 @@ class IdentifierError(IntentError):
 
     Raised by identifier_resolver.py. A subclass of IntentError, because a bad
     identifier is one way an intent can be invalid.
+    """
+
+
+class RouteError(IntentError):
+    """A relationship intent is valid, but no approved route answers it.
+
+    Raised by planner.py: no route between the two stereotypes, none through the
+    requested 'via' stereotypes, or several equally good ones. A subclass of
+    IntentError, because the question can't be answered as asked.
     """
 
 

@@ -1,0 +1,69 @@
+{
+  "version": "0.1.0",
+  "relationships": [
+    {
+      "relationshipId": "PROC_PSTP",
+      "source": "PROC",
+      "target": "PSTP",
+      "cardinality": {
+        "source": "1",
+        "target": "1..*"
+      },
+      "description": "A business process is made up of business process steps"
+    },
+    {
+      "relationshipId": "PSTP_PROC",
+      "source": "PSTP",
+      "target": "PROC",
+      "cardinality": null,
+      "description": "A business process step traces to a business process (separate from PROC_PSTP, where a process is made up of steps)"
+    },
+    {
+      "relationshipId": "PSTP_UC",
+      "source": "PSTP",
+      "target": "UC",
+      "cardinality": {
+        "source": "1..*",
+        "target": "0..*"
+      },
+      "description": "A business process step is supported by system use cases"
+    },
+    {
+      "relationshipId": "UC_USTP",
+      "source": "UC",
+      "target": "USTP",
+      "cardinality": {
+        "source": "1",
+        "target": "1..*"
+      },
+      "description": "A system use case is made up of system use case steps"
+    },
+    {
+      "relationshipId": "USTP_UC",
+      "source": "USTP",
+      "target": "UC",
+      "cardinality": null,
+      "description": "A system use case step traces to a system use case (separate from UC_USTP, where a use case is made up of steps)"
+    },
+    {
+      "relationshipId": "USTP_SREQ",
+      "source": "USTP",
+      "target": "SREQ",
+      "cardinality": {
+        "source": "1..*",
+        "target": "0..*"
+      },
+      "description": "A system use case step is realized by system requirements; one SREQ can be shared across multiple steps"
+    },
+    {
+      "relationshipId": "SREQ_DATA",
+      "source": "SREQ",
+      "target": "DATA",
+      "cardinality": {
+        "source": "0..*",
+        "target": "1..*"
+      },
+      "description": "A system requirement uses data elements"
+    }
+  ]
+}

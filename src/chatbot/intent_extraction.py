@@ -68,7 +68,21 @@ Rules:
    write "UNSUPPORTED" as that attribute name (in columns, or as the filter's attribute).
    Never pick a different field instead.
 12. If the question can't be expressed with these query types, reply
-   {"queryType": "unsupported", "reason": "<one short sentence>"}."""
+   {"queryType": "unsupported", "reason": "<one short sentence>"}.
+13. relationship: source is the stereotype the question starts from, target is the
+   stereotype whose objects the user wants returned. Rules 9 and 11 apply to both.
+14. relationship filters: every filter must have "on": the stereotype code it applies
+   to, which must be the source or the target. A filter with no "attribute" searches
+   the description of the "on" stereotype.
+15. via: fill it only and only if the question explicitly asks for the result to go
+   through a specific stereotype (e.g. "through its steps", "via SREQ"). In every other
+   case leave it out, including when the stereotype is only the source, the target,
+   or in a filter, or when the question says the route should NOT go through it.
+   If the user asks to go through an object type that is not in the list below,
+   write "UNSUPPORTED" in via.
+   "Which SREQs realize USTP7?" -> leave via out.
+   "Which data does UC45 use, via its steps?" -> "via": ["USTP"].
+   "Which data does UC45 use, not through its steps?" -> leave via out."""
 
 
 def build_system_prompt(metadata: Metadata) -> str:

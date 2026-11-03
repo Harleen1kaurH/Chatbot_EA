@@ -1,0 +1,175 @@
+{
+  "version": "0.1.0",
+  "paths": [
+    {
+      "pathId": "PROC_PSTP",
+      "source": "PROC",
+      "target": "PSTP",
+      "description": "Business process steps the business process is made up of (PROC -> PSTP)",
+      "steps": [
+        "PROC_PSTP"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PROC_UC",
+      "source": "PROC",
+      "target": "UC",
+      "description": "System use cases linked to the business process through the main traceability chain (PROC -> PSTP -> UC)",
+      "steps": [
+        "PROC_PSTP",
+        "PSTP_UC"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PROC_USTP",
+      "source": "PROC",
+      "target": "USTP",
+      "description": "System use case steps linked to the business process through the main traceability chain (PROC -> PSTP -> UC -> USTP)",
+      "steps": [
+        "PROC_PSTP",
+        "PSTP_UC",
+        "UC_USTP"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PROC_SREQ",
+      "source": "PROC",
+      "target": "SREQ",
+      "description": "System requirements linked to the business process through the main traceability chain (PROC -> PSTP -> UC -> USTP -> SREQ)",
+      "steps": [
+        "PROC_PSTP",
+        "PSTP_UC",
+        "UC_USTP",
+        "USTP_SREQ"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PROC_DATA",
+      "source": "PROC",
+      "target": "DATA",
+      "description": "Data elements linked to the business process through the main traceability chain (PROC -> PSTP -> UC -> USTP -> SREQ -> DATA)",
+      "steps": [
+        "PROC_PSTP",
+        "PSTP_UC",
+        "UC_USTP",
+        "USTP_SREQ",
+        "SREQ_DATA"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PSTP_UC",
+      "source": "PSTP",
+      "target": "UC",
+      "description": "System use cases that support the business process step (PSTP -> UC)",
+      "steps": [
+        "PSTP_UC"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PSTP_USTP",
+      "source": "PSTP",
+      "target": "USTP",
+      "description": "System use case steps linked to the business process step through the main traceability chain (PSTP -> UC -> USTP)",
+      "steps": [
+        "PSTP_UC",
+        "UC_USTP"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PSTP_SREQ",
+      "source": "PSTP",
+      "target": "SREQ",
+      "description": "System requirements linked to the business process step through the main traceability chain (PSTP -> UC -> USTP -> SREQ)",
+      "steps": [
+        "PSTP_UC",
+        "UC_USTP",
+        "USTP_SREQ"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "PSTP_DATA",
+      "source": "PSTP",
+      "target": "DATA",
+      "description": "Data elements linked to the business process step through the main traceability chain (PSTP -> UC -> USTP -> SREQ -> DATA)",
+      "steps": [
+        "PSTP_UC",
+        "UC_USTP",
+        "USTP_SREQ",
+        "SREQ_DATA"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "UC_USTP",
+      "source": "UC",
+      "target": "USTP",
+      "description": "System use case steps the system use case is made up of (UC -> USTP)",
+      "steps": [
+        "UC_USTP"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "UC_SREQ",
+      "source": "UC",
+      "target": "SREQ",
+      "description": "System requirements linked to the system use case through the main traceability chain (UC -> USTP -> SREQ)",
+      "steps": [
+        "UC_USTP",
+        "USTP_SREQ"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "UC_DATA",
+      "source": "UC",
+      "target": "DATA",
+      "description": "Data elements linked to the system use case through the main traceability chain (UC -> USTP -> SREQ -> DATA)",
+      "steps": [
+        "UC_USTP",
+        "USTP_SREQ",
+        "SREQ_DATA"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "USTP_SREQ",
+      "source": "USTP",
+      "target": "SREQ",
+      "description": "System requirements that realize the system use case step, linked directly (USTP -> SREQ)",
+      "steps": [
+        "USTP_SREQ"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "USTP_DATA",
+      "source": "USTP",
+      "target": "DATA",
+      "description": "Data elements linked to the system use case step through the main traceability chain (USTP -> SREQ -> DATA)",
+      "steps": [
+        "USTP_SREQ",
+        "SREQ_DATA"
+      ],
+      "default": true
+    },
+    {
+      "pathId": "SREQ_DATA",
+      "source": "SREQ",
+      "target": "DATA",
+      "description": "Data elements used by the system requirement (SREQ -> DATA)",
+      "steps": [
+        "SREQ_DATA"
+      ],
+      "default": true
+    }
+  ]
+}

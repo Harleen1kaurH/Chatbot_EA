@@ -1,8 +1,9 @@
 """Load and cache the metadata files.
 
-What: reads metadata/stereotypes.json, operators.json and intents.json and turns
-them into frozen Python objects (Metadata, Stereotype, Attribute, Operator,
-QueryType) that the rest of the code reads.
+What: reads metadata/stereotypes.json, operators.json, intents.json,
+relationships.json and canonical_paths.json and turns them into frozen Python
+objects (Metadata, Stereotype, Attribute, Operator, QueryType, Relationship,
+CanonicalPath) that the rest of the code reads.
 
 How: all metadata is read once, checked by metadata_checks.py, and kept in memory.
 If any file is missing or invalid, loading fails with a MetadataError that names
@@ -121,23 +122,64 @@ class QueryType:
 
 
 @dataclass(frozen=True)
+class Relationship:
+    """One kind of link stored in t_connector, e.g. USTP_SREQ.
+
+    source and target are the Start and End of the connector exactly as t_connector
+    stores them; walking the other way is done by the planner, not by a second
+    entry. cardinality is (source side, target side), e.g. ("1..*", "0..*"), or None
+    when unknown. It is documentation only and never used to build joins.
+    """
+    id: str
+    source: str
+    target: str
+    cardinality: tuple[str, str] | None
+    description: str
+
+
+@dataclass(frozen=True)
+class CanonicalPath:
+    """One approved route between two stereotypes, e.g. UC_DATA = UC_USTP > USTP_SREQ > SREQ_DATA.
+
+    steps are relationship IDs in walking order from source to target. The same
+    route also answers the reverse question (target -> source) by walking the steps
+    backwards; the planner decides that. is_default marks the route used when the
+    question doesn't ask for a specific one (exactly one per source/target pair).
+    """
+    id: str
+    source: str
+    target: str
+    description: str
+    steps: tuple[str, ...]
+    is_default: bool
+
+
+@dataclass(frozen=True)
 class Metadata:
-    """Everything loaded from the three files, as one object.
+    """Everything loaded from the metadata files, as one object.
 
     Passed to almost every function as `md`, so signatures take one parameter
-    instead of three, and tests can pass a modified copy. versions holds each file's
+    instead of five, and tests can pass a modified copy. versions holds each file's
     "version" value; check_metadata prints it.
+
+    paths_by_pair and default_path hold the same CanonicalPath objects as paths,
+    grouped by (source, target), so the planner can go straight from the two
+    stereotypes in a question to their routes. Built by index_paths.
     """
     stereotypes: dict[str, Stereotype]
     operators: dict[str, Operator]
     query_types: dict[str, QueryType]
+    relationships: dict[str, Relationship]
+    paths: dict[str, CanonicalPath]
+    paths_by_pair: dict[tuple[str, str], tuple[CanonicalPath, ...]]  # (source, target) -> every route for the pair
+    default_path: dict[tuple[str, str], CanonicalPath]  # (source, target) -> the pair's default route
     versions: dict[str, str]
 
 
 # ---------------------------------------------------------------- loading
 
 
-# @lru_cache(maxsize=None)
+@lru_cache(maxsize=None)
 def load_metadata(metadata_dir: str | None = None) -> Metadata:
     """Read, check and build all metadata.
 
@@ -151,10 +193,16 @@ def load_metadata(metadata_dir: str | None = None) -> Metadata:
     directory = Path(metadata_dir) if metadata_dir else DEFAULT_METADATA_DIR
     files = {name: _read_json(directory / name) for name in FILES}
     check_metadata_files(files)
+    paths = _build_paths(files["canonical_paths.json"])
+    paths_by_pair, default_path = index_paths(paths)
     return Metadata(
         stereotypes=_build_stereotypes(files["stereotypes.json"]),
         operators=_build_operators(files["operators.json"]),
         query_types=_build_query_types(files["intents.json"]),
+        relationships=_build_relationships(files["relationships.json"]),
+        paths=paths,
+        paths_by_pair=paths_by_pair,
+        default_path=default_path,
         versions={name: str(data.get("version", "unknown")) for name, data in files.items()},
     )
 
@@ -233,3 +281,52 @@ def _build_query_types(data: dict[str, Any]) -> dict[str, QueryType]:
         )
         for raw in data["queryTypes"]
     }
+
+
+def _build_relationships(data: dict[str, Any]) -> dict[str, Relationship]:
+    """Build the Relationship objects, keyed by relationshipId. Input is already checked."""
+    result: dict[str, Relationship] = {}
+    for raw in data["relationships"]:
+        cardinality = raw.get("cardinality")
+        result[raw["relationshipId"]] = Relationship(
+            id=raw["relationshipId"],
+            source=raw["source"],
+            target=raw["target"],
+            cardinality=(cardinality["source"], cardinality["target"]) if cardinality else None,
+            description=raw["description"],
+        )
+    return result
+
+
+def _build_paths(data: dict[str, Any]) -> dict[str, CanonicalPath]:
+    """Build the CanonicalPath objects, keyed by pathId. Input is already checked."""
+    return {
+        raw["pathId"]: CanonicalPath(
+            id=raw["pathId"],
+            source=raw["source"],
+            target=raw["target"],
+            description=raw["description"],
+            steps=tuple(raw["steps"]),
+            is_default=raw["default"],
+        )
+        for raw in data["paths"]
+    }
+
+
+def index_paths(
+    paths: dict[str, CanonicalPath],
+) -> tuple[dict[tuple[str, str], tuple[CanonicalPath, ...]], dict[tuple[str, str], CanonicalPath]]:
+    """Group the paths by (source, target): every route per pair, and the pair's default route.
+
+    Paths keep the order they have in canonical_paths.json. metadata_checks has
+    already made sure each pair has exactly one default. Public so tests can build
+    a Metadata with their own paths.
+    """
+    grouped: dict[tuple[str, str], list[CanonicalPath]] = {}
+    default: dict[tuple[str, str], CanonicalPath] = {}
+    for path in paths.values():
+        pair = (path.source, path.target)
+        grouped.setdefault(pair, []).append(path)
+        if path.is_default:
+            default[pair] = path
+    return {pair: tuple(routes) for pair, routes in grouped.items()}, default

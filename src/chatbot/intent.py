@@ -1,11 +1,13 @@
 """The intent contract: check a raw intent (a dict) and turn it into typed objects.
 
-Phase 1 supports two query types:
+Three query types:
   stereotypeSearch    lookup (has anchor) or search (has filters), never both
   describeStereotype  list a stereotype's business attribute names
+  relationship        follow links from a source stereotype to a target stereotype;
+                      anchor (on the source), filters (each on the source or target), or both
 
 What: parse_intent() takes the dict the LLM produced and returns a frozen
-StereotypeSearchIntent or DescribeStereotypeIntent.
+StereotypeSearchIntent, DescribeStereotypeIntent or RelationshipIntent.
 
 How: every field is checked against the metadata: allowed and required fields
 come from intents.json, names from stereotypes.json and operators.json. Names
@@ -22,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Union
 
-from .errors import IntentError
+from .errors import IdentifierError, IntentError
 from .identifier_resolver import resolve_identifier
 from .metadata_checks import UNSUPPORTED_NAME
 from .metadata_loader import Attribute, Metadata, Operator, Stereotype
@@ -69,7 +71,36 @@ class DescribeStereotypeIntent:
     stereotype: Stereotype
 
 
-Intent = Union[StereotypeSearchIntent, DescribeStereotypeIntent]
+@dataclass(frozen=True)
+class RelationshipFilter:
+    """A filter in a relationship intent: which stereotype it applies to, and the filter itself.
+
+    stereotype is always the intent's source or target (the "on" field). filter is
+    the same Filter a stereotypeSearch uses, already checked against that stereotype.
+    """
+    stereotype: Stereotype
+    filter: Filter
+
+
+@dataclass(frozen=True)
+class RelationshipIntent:
+    """A validated relationship question; the input to the planner and the relationship SQL builder.
+
+    At least one of identifier or filters is set, and both may be. identifier always
+    belongs to the source. columns are the target's, always starting with its
+    identifier and description attributes. via lists stereotypes the route must pass
+    through (empty when the question doesn't ask for one); the planner checks that
+    such a route exists.
+    """
+    source: Stereotype
+    target: Stereotype
+    identifier: str | None  # resolved against the source, e.g. "UC45"
+    filters: tuple[RelationshipFilter, ...]
+    columns: tuple[Attribute, ...]  # target attributes: identifier + description first, then any requested
+    via: tuple[Stereotype, ...]
+
+
+Intent = Union[StereotypeSearchIntent, DescribeStereotypeIntent, RelationshipIntent]
 
 
 def parse_intent(raw: Any, metadata: Metadata) -> Intent:
@@ -80,7 +111,8 @@ def parse_intent(raw: Any, metadata: Metadata) -> Intent:
       2. required fields are present and no unknown fields are present (both from intents.json);
       3. source is a known stereotype;
       4. for stereotypeSearch: exactly one of anchor / filters, then the columns,
-         the identifier or each filter.
+         the identifier or each filter;
+         for relationship: see _relationship.
     """
     if not isinstance(raw, dict):
         raise IntentError("The intent must be a JSON object.")
@@ -107,6 +139,8 @@ def parse_intent(raw: Any, metadata: Metadata) -> Intent:
 
     if query_type == "describeStereotype":
         return DescribeStereotypeIntent(stereotype=stereotype)
+    if query_type == "relationship":
+        return _relationship(raw, stereotype, metadata)
 
     has_anchor = "anchor" in raw
     has_filters = "filters" in raw
@@ -130,6 +164,111 @@ def parse_intent(raw: Any, metadata: Metadata) -> Intent:
         identifier=None,
         filters=_filters(raw["filters"], stereotype, metadata),
     )
+
+
+# ---------------------------------------------------------------- relationship
+
+
+def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -> RelationshipIntent:
+    """Check the relationship-specific fields and return a RelationshipIntent.
+
+    Order: target is a known stereotype different from the source; at least one of
+    anchor / filters; the anchor resolves against the source; each filter is on the
+    source or target; columns belong to the target; via names other stereotypes.
+    Whether a route actually exists (with or without via) is the planner's job.
+    """
+    target = _stereotype(raw.get("target"), metadata)
+    if target.code == source.code:
+        raise IntentError(f"A relationship needs two different stereotypes, but source and target are both {source.code}.")
+
+    if "anchor" not in raw and "filters" not in raw:
+        raise IntentError(
+            "A relationship question needs an 'anchor' (an identifier to start from), 'filters', or both."
+        )
+
+    identifier = _relationship_anchor(raw["anchor"], source, target, metadata) if "anchor" in raw else None
+    filters = ()
+    if "filters" in raw:
+        if not isinstance(raw["filters"], list) or not raw["filters"]:
+            raise IntentError("'filters' must be a non-empty list.")
+        filters = tuple(_relationship_filter(f, i, source, target, metadata) for i, f in enumerate(raw["filters"]))
+
+    return RelationshipIntent(
+        source=source,
+        target=target,
+        identifier=identifier,
+        filters=filters,
+        columns=_columns(raw.get("columns"), target),
+        via=_via(raw.get("via"), source, target, metadata) if "via" in raw else (),
+    )
+
+
+def _relationship_anchor(raw: Any, source: Stereotype, target: Stereotype, metadata: Metadata) -> str:
+    """Resolve the anchor against the source, like a stereotypeSearch lookup.
+
+    If it fails because the identifier belongs to the target (e.g. "DATA9" in a
+    UC -> DATA question), say so directly: the LLM most likely swapped source and
+    target, and the general "is a DATA identifier" message wouldn't make that clear.
+    """
+    try:
+        return _anchor(raw, source, metadata)
+    except IdentifierError as original:
+        try:
+            _anchor(raw, target, metadata)
+        except IntentError:
+            raise original from None  # not the target's either: the original error says what is wrong
+        raise IdentifierError(
+            f"The anchor {raw['identifier']!r} is a {target.code} identifier, but the anchor must be an object "
+            f"of the source, {source.code} ({source.display_name})."
+        ) from None
+
+
+def _relationship_filter(raw: Any, index: int, source: Stereotype, target: Stereotype, metadata: Metadata) -> RelationshipFilter:
+    """Check a filter's "on" (the source or target code), then check the rest exactly like a search filter.
+
+    The filter is validated against the stereotype in "on", so a filter with no
+    attribute searches that stereotype's description.
+    """
+    where = f"filters[{index}]"
+    if not isinstance(raw, dict):
+        raise IntentError(f"{where} must be an object.")
+    if "on" not in raw:
+        raise IntentError(f"{where} needs 'on': the stereotype it applies to, {source.code} or {target.code}.")
+    on = raw["on"]
+    code = on.strip().upper() if isinstance(on, str) else None
+    if code == source.code:
+        stereotype = source
+    elif code == target.code:
+        stereotype = target
+    else:
+        raise IntentError(
+            f"{where}: 'on' is {on!r}, but a filter can only apply to the source ({source.code}) "
+            f"or the target ({target.code})."
+        )
+    rest = {k: v for k, v in raw.items() if k != "on"}
+    return RelationshipFilter(stereotype=stereotype, filter=_filter(rest, index, stereotype, metadata))
+
+
+def _via(raw: Any, source: Stereotype, target: Stereotype, metadata: Metadata) -> tuple[Stereotype, ...]:
+    """Check "via": a non-empty list of stereotype codes, none of them the source or target, none repeated.
+
+    "UNSUPPORTED" means the user asked to go through an object type that isn't
+    supported yet; it is rejected by _stereotype like an unsupported source.
+    """
+    if not isinstance(raw, list) or not raw:
+        raise IntentError("'via' must be a non-empty list of stereotype codes, or left out.")
+    result = []
+    for name in raw:
+        stereotype = _stereotype(name, metadata)
+        if stereotype.code in (source.code, target.code):
+            raise IntentError(
+                f"'via' lists {stereotype.code}, which is already the source or target. "
+                "'via' is only for stereotypes in between."
+            )
+        if any(s.code == stereotype.code for s in result):
+            raise IntentError(f"'via' lists {stereotype.code} twice.")
+        result.append(stereotype)
+    return tuple(result)
 
 
 # ---------------------------------------------------------------- pieces

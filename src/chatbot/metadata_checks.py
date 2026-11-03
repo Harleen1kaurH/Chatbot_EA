@@ -10,6 +10,8 @@ The same checks run in two places:
 
 Why so many checks for files we write ourselves: JSON has no compiler, and most
 mistakes don't crash, they give wrong answers. The checks fall into groups:
+  - routes: every relationship joins two real stereotypes, every canonical path is a
+    connected chain of real relationships, and each stereotype pair has one default route
   - SQL safety: names written into SQL text must be safe (attribute names, views, columns)
   - silent wrong answers: dataType typos, shared prefixes, duplicate names or columns
   - JSON matches the code: operandCount values, query types that have code behind them
@@ -25,13 +27,16 @@ from .errors import MetadataError
 
 DATA_TYPES = {"text", "number", "datetime", "flag"}
 OPERAND_COUNTS = {"ONE", "MANY"}
-QUERY_TYPES = {"stereotypeSearch", "describeStereotype"}  # query types that have code behind them
+# Query types that have code behind them. "relationship" is listed so intents.json can
+# describe it, but parse_intent rejects it until the planner and SQL builder exist.
+QUERY_TYPES = {"stereotypeSearch", "describeStereotype", "relationship"}
 
 _ATTRIBUTE_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_ROUTE_ID = re.compile(r"^[A-Z][A-Z0-9_]*$")  # relationshipId and pathId, e.g. USTP_SREQ
 _STEREOTYPE_CODE = re.compile(r"^[A-Z][A-Z0-9]*$")
 _VIEW_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-FILES = ("stereotypes.json", "operators.json", "intents.json")
+FILES = ("stereotypes.json", "operators.json", "intents.json", "relationships.json", "canonical_paths.json")
 
 # The LLM writes this in place of a stereotype code or attribute name when the user asks
 # for an object type or field that isn't supported. Reserved, so no real stereotype or
@@ -50,6 +55,9 @@ def check_metadata_files(files: dict[str, Any]) -> None:
     _check_stereotypes(files["stereotypes.json"])
     _check_operators(files["operators.json"])
     _check_query_types(files["intents.json"])
+    codes = {s["stereotype"] for s in files["stereotypes.json"]["stereotypes"]}
+    relationships = _check_relationships(files["relationships.json"], codes)
+    _check_canonical_paths(files["canonical_paths.json"], codes, relationships)
 
 
 # ---------------------------------------------------------------- helpers
@@ -243,3 +251,114 @@ def _check_query_types(data: dict[str, Any]) -> None:
     missing = QUERY_TYPES - seen
     if missing:
         raise MetadataError(f"intents.json: query types missing: {sorted(missing)}")
+
+
+# ---------------------------------------------------------------- relationships.json
+
+
+def _check_relationships(data: dict[str, Any], codes: set[str]) -> dict[str, tuple[str, str]]:
+    """Check relationships.json and return {relationshipId: (source, target)} for the path checks.
+
+    Each relationship: ID format, listed once, source and target are known
+    stereotypes, no self-loops (not supported yet), and each stored direction
+    (source -> target) appears only once, since two entries for the same pair would
+    follow the same t_connector rows. cardinality is optional: null or
+    {"source": ..., "target": ...}. source and target are the Start and End of the
+    connector as stored in t_connector.
+    """
+    result: dict[str, tuple[str, str]] = {}
+    pair_owner: dict[tuple[str, str], str] = {}
+    for i, raw in enumerate(_require(data, "relationships", list, "relationships.json")):
+        where = f"relationships.json: relationships[{i}]"
+        if not isinstance(raw, dict):
+            raise MetadataError(f"{where}: must be an object")
+        rel_id = _require(raw, "relationshipId", str, where)
+        where = f"relationships.json: {rel_id}"
+        if not _ROUTE_ID.match(rel_id):
+            raise MetadataError(f"{where}: relationshipId must be upper-case letters, digits and _")
+        if rel_id in result:
+            raise MetadataError(f"{where}: relationship listed twice")
+        source, target = _route_ends(raw, codes, where)
+        if (source, target) in pair_owner:
+            raise MetadataError(f"{where}: {source} -> {target} is already stored by {pair_owner[(source, target)]}")
+        pair_owner[(source, target)] = rel_id
+        _require(raw, "description", str, where)
+        cardinality = raw.get("cardinality")
+        if cardinality is not None:
+            if not isinstance(cardinality, dict):
+                raise MetadataError(f"{where}: cardinality must be null or an object with source and target")
+            _require(cardinality, "source", str, f"{where}.cardinality")
+            _require(cardinality, "target", str, f"{where}.cardinality")
+        result[rel_id] = (source, target)
+    return result
+
+
+def _route_ends(raw: dict[str, Any], codes: set[str], where: str) -> tuple[str, str]:
+    """Check source and target of a relationship or path: known stereotypes, and not the same one."""
+    source = _require(raw, "source", str, where)
+    target = _require(raw, "target", str, where)
+    for field, code in (("source", source), ("target", target)):
+        if code not in codes:
+            raise MetadataError(f"{where}: {field} '{code}' is not a stereotype in stereotypes.json")
+    if source == target:
+        raise MetadataError(f"{where}: source and target are both {source}; self-loops are not supported yet")
+    return source, target
+
+
+# ---------------------------------------------------------------- canonical_paths.json
+
+
+def _check_canonical_paths(data: dict[str, Any], codes: set[str], relationships: dict[str, tuple[str, str]]) -> None:
+    """Check canonical_paths.json.
+
+    Each path: ID format, listed once, source and target are known stereotypes,
+    steps is a non-empty list of known relationshipIds that form one connected chain
+    from source to target, and default is true/false. A step may be walked either
+    way (the planner works out the direction), so each step only has to share a
+    stereotype with where the chain currently is. Across paths: every stereotype
+    pair that has routes has exactly one default, or the planner couldn't choose.
+    """
+    seen: set[str] = set()
+    defaults: dict[tuple[str, str], list[str]] = {}
+    for i, raw in enumerate(_require(data, "paths", list, "canonical_paths.json")):
+        where = f"canonical_paths.json: paths[{i}]"
+        if not isinstance(raw, dict):
+            raise MetadataError(f"{where}: must be an object")
+        path_id = _require(raw, "pathId", str, where)
+        where = f"canonical_paths.json: {path_id}"
+        if not _ROUTE_ID.match(path_id):
+            raise MetadataError(f"{where}: pathId must be upper-case letters, digits and _")
+        if path_id in seen:
+            raise MetadataError(f"{where}: path listed twice")
+        seen.add(path_id)
+        source, target = _route_ends(raw, codes, where)
+        _require(raw, "description", str, where)
+
+        steps = _require(raw, "steps", list, where)
+        if not steps:
+            raise MetadataError(f"{where}: steps must list at least one relationshipId")
+        current = source
+        for step in steps:
+            if not isinstance(step, str) or step not in relationships:
+                raise MetadataError(f"{where}: step {step!r} is not a relationshipId in relationships.json")
+            start, end = relationships[step]
+            if current == start:
+                current = end
+            elif current == end:
+                current = start
+            else:
+                raise MetadataError(f"{where}: step {step} ({start} -> {end}) does not connect to {current}")
+        if current != target:
+            raise MetadataError(f"{where}: steps end at {current}, not at target {target}")
+
+        if _require(raw, "default", bool, where):
+            defaults.setdefault((source, target), []).append(path_id)
+        else:
+            defaults.setdefault((source, target), [])
+
+    for (source, target), ids in defaults.items():
+        if len(ids) != 1:
+            found = f"found {ids}" if ids else "found none"
+            raise MetadataError(
+                f"canonical_paths.json: {source} -> {target} must have exactly one default path, {found}"
+            )

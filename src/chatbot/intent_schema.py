@@ -28,10 +28,11 @@ from .metadata_loader import Metadata
 
 
 def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
-    """Build the schema: the reply must match one of three shapes.
+    """Build the schema: the reply must match one of four shapes.
 
-      search       stereotypeSearch with anchor / columns / filters
-      describe     describeStereotype with source
+      search        stereotypeSearch with anchor / columns / filters
+      describe      describeStereotype with source
+      relationship  relationship with source / target / anchor / filters (each with "on") / columns / via
       unsupported  {"queryType": "unsupported", "reason": ...}, the LLM's way to say no
 
     Allowed names (stereotypes, attributes, operators) and required fields come from
@@ -88,6 +89,34 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
         "additionalProperties": False,
     }
 
+    relationship = {
+        "type": "object",
+        "properties": {
+            "queryType": {"const": "relationship"},
+            "source": {"enum": stereotypes},
+            "target": {"enum": stereotypes},
+            "anchor": search["properties"]["anchor"],
+            "columns": search["properties"]["columns"],
+            "filters": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        # Which end of the route the filter applies to; intent.py checks it is the source or target.
+                        "on": {"enum": sorted(metadata.stereotypes)},
+                        **search["properties"]["filters"]["items"]["properties"],
+                    },
+                    "required": ["on", "operator", "value"],
+                    "additionalProperties": False,
+                },
+            },
+            "via": {"type": "array", "items": {"enum": stereotypes}, "minItems": 1},
+        },
+        "required": sorted(metadata.query_types["relationship"].required_fields),
+        "additionalProperties": False,
+    }
+
     unsupported = {
         "type": "object",
         "properties": {"queryType": {"const": UNSUPPORTED}, "reason": text},
@@ -95,4 +124,4 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
         "additionalProperties": False,
     }
 
-    return {"anyOf": [search, describe, unsupported]}
+    return {"anyOf": [search, describe, relationship, unsupported]}

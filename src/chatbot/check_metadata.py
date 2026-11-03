@@ -37,8 +37,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Metadata OK ({args.metadata_dir or DEFAULT_METADATA_DIR})")
     for name, version in md.versions.items():
-        print(f"  {name:<18} version {version}")
-    print(f"  {len(md.stereotypes)} stereotypes, {len(md.operators)} operators, {len(md.query_types)} query types")
+        print(f"  {name:<20} version {version}")
+    print(
+        f"  {len(md.stereotypes)} stereotypes, {len(md.operators)} operators, {len(md.query_types)} query types, "
+        f"{len(md.relationships)} relationships, {len(md.paths)} canonical paths"
+    )
     return 0
 
 
