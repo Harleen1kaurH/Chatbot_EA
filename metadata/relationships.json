@@ -5,6 +5,7 @@
       "relationshipId": "PROC_PSTP",
       "source": "PROC",
       "target": "PSTP",
+      "connectorType": "Dependency",
       "cardinality": {
         "source": "1",
         "target": "1..*"
@@ -15,6 +16,7 @@
       "relationshipId": "PSTP_PROC",
       "source": "PSTP",
       "target": "PROC",
+      "connectorType": "Dependency",
       "cardinality": null,
       "description": "A business process step traces to a business process (separate from PROC_PSTP, where a process is made up of steps)"
     },
@@ -22,6 +24,7 @@
       "relationshipId": "PSTP_UC",
       "source": "PSTP",
       "target": "UC",
+      "connectorType": "Dependency",
       "cardinality": {
         "source": "1..*",
         "target": "0..*"
@@ -32,6 +35,7 @@
       "relationshipId": "UC_USTP",
       "source": "UC",
       "target": "USTP",
+      "connectorType": "Dependency",
       "cardinality": {
         "source": "1",
         "target": "1..*"
@@ -42,6 +46,7 @@
       "relationshipId": "USTP_UC",
       "source": "USTP",
       "target": "UC",
+      "connectorType": "Dependency",
       "cardinality": null,
       "description": "A system use case step traces to a system use case (separate from UC_USTP, where a use case is made up of steps)"
     },
@@ -49,6 +54,7 @@
       "relationshipId": "USTP_SREQ",
       "source": "USTP",
       "target": "SREQ",
+      "connectorType": "Dependency",
       "cardinality": {
         "source": "1..*",
         "target": "0..*"
@@ -59,6 +65,7 @@
       "relationshipId": "SREQ_DATA",
       "source": "SREQ",
       "target": "DATA",
+      "connectorType": "Dependency",
       "cardinality": {
         "source": "0..*",
         "target": "1..*"

@@ -39,6 +39,7 @@ from .planner import FORWARD, Plan
 CONNECTOR_TABLE = "t_connector"
 CONNECTOR_START = "Start_Object_ID"  # the object the link was drawn from
 CONNECTOR_END = "End_Object_ID"  # the object the link was drawn to
+CONNECTOR_TYPE = "Connector_Type"  # e.g. Dependency; the value to follow comes from relationships.json
 
 
 @dataclass(frozen=True)
@@ -115,17 +116,22 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
     not stereotype code, so a route could visit the same view twice without a clash.
 
     Each hop adds two joins. Forward (walking the way the link was drawn):
-        JOIN [t_connector] c1 ON c1.[Start_Object_ID] = s0.[Object_ID]
+        JOIN [t_connector] c1 ON c1.[Start_Object_ID] = s0.[Object_ID] AND c1.[Connector_Type] = 'Dependency'
         JOIN [USTP] s1        ON s1.[Object_ID] = c1.[End_Object_ID]
-    Backward swaps Start and End. Every join is INNER for now: a row is returned only
-    if it reaches the target.
+    Backward swaps Start and End. The Connector_Type condition (the relationship's
+    connectorType) keeps only the links that mean this relationship. Every join is
+    INNER: a row is returned only if it reaches the target.
 
-    SELECT DISTINCT lists each stereotype's identifier in route order (UC_TAG,
-    USTP_TAG, ...), then the target's other columns (DATA_DESCRIPTION, ...). DISTINCT
-    because the same two objects can be linked by more than one connector. The anchor
-    is matched on s0; each filter on the alias of its stereotype (s0 or sN). ORDER BY
-    is the identifier columns in route order; identifiers are unique per stereotype,
-    so the order is stable, and DISTINCT requires ORDER BY columns to be selected.
+    SELECT lists each stereotype's identifier in route order (UC_TAG, USTP_TAG, ...),
+    then the target's other columns (DATA_DESCRIPTION, ...). No DISTINCT: with the
+    Connector_Type filter, two objects are linked by at most one connector, so every
+    row is a different combination of objects. The anchor is matched on s0; each
+    filter on the alias of its stereotype (s0 or sN). ORDER BY is the identifier
+    columns in route order; identifiers are unique per stereotype, so the order is stable.
+
+    TODO(include): stereotypes shown alongside the route will be added here. Ones on
+    the route only add columns; ones past the target become LEFT-joined branches from
+    the target. See the TODO in intent.py for the planned rules.
     """
     params = _Params()
     stereotypes = plan.stereotypes
@@ -145,7 +151,9 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
         prev, nxt = hop.from_stereotype, hop.to_stereotype
         lines.append(
             f"JOIN {quote_identifier(CONNECTOR_TABLE)} c{i} "
-            f"ON c{i}.{quote_identifier(here)} = s{i - 1}.{quote_identifier(prev.primary_key_column)}"
+            f"ON c{i}.{quote_identifier(here)} = s{i - 1}.{quote_identifier(prev.primary_key_column)} "
+            # connector_type is checked at startup (letters and spaces only), so it is safe as a literal.
+            f"AND c{i}.{quote_identifier(CONNECTOR_TYPE)} = '{hop.relationship.connector_type}'"
         )
         lines.append(
             f"JOIN {quote_identifier(nxt.view)} s{i} "
@@ -162,7 +170,7 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
         conditions.append(_condition(rf.filter, params, alias))
 
     sql = (
-        "SELECT DISTINCT " + ",\n       ".join(select) + "\n"
+        "SELECT " + ",\n       ".join(select) + "\n"
         + "\n".join(lines) + "\n"
         + f"WHERE {' AND '.join(conditions)}\n"
         + f"ORDER BY {', '.join(tags)};"

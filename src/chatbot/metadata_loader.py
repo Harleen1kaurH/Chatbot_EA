@@ -127,12 +127,14 @@ class Relationship:
 
     source and target are the Start and End of the connector exactly as t_connector
     stores them; walking the other way is done by the planner, not by a second
-    entry. cardinality is (source side, target side), e.g. ("1..*", "0..*"), or None
-    when unknown. It is documentation only and never used to build joins.
+    entry. connector_type is the t_connector.Connector_Type value the joins follow,
+    e.g. "Dependency". cardinality is (source side, target side), e.g. ("1..*", "0..*"),
+    or None when unknown. It is documentation only and never used to build joins.
     """
     id: str
     source: str
     target: str
+    connector_type: str
     cardinality: tuple[str, str] | None
     description: str
 
@@ -292,6 +294,7 @@ def _build_relationships(data: dict[str, Any]) -> dict[str, Relationship]:
             id=raw["relationshipId"],
             source=raw["source"],
             target=raw["target"],
+            connector_type=raw["connectorType"],
             cardinality=(cardinality["source"], cardinality["target"]) if cardinality else None,
             description=raw["description"],
         )

@@ -33,6 +33,7 @@ QUERY_TYPES = {"stereotypeSearch", "describeStereotype", "relationship"}
 
 _ATTRIBUTE_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 _ROUTE_ID = re.compile(r"^[A-Z][A-Z0-9_]*$")  # relationshipId and pathId, e.g. USTP_SREQ
+_CONNECTOR_TYPE = re.compile(r"^[A-Za-z][A-Za-z ]*$")  # t_connector.Connector_Type value, e.g. Dependency
 _STEREOTYPE_CODE = re.compile(r"^[A-Z][A-Z0-9]*$")
 _VIEW_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -262,7 +263,9 @@ def _check_relationships(data: dict[str, Any], codes: set[str]) -> dict[str, tup
     Each relationship: ID format, listed once, source and target are known
     stereotypes, no self-loops (not supported yet), and each stored direction
     (source -> target) appears only once, since two entries for the same pair would
-    follow the same t_connector rows. cardinality is optional: null or
+    follow the same t_connector rows. connectorType is the t_connector.Connector_Type
+    value to follow (e.g. Dependency); it is written into the SQL as a literal, so only
+    letters and spaces are allowed. cardinality is optional: null or
     {"source": ..., "target": ...}. source and target are the Start and End of the
     connector as stored in t_connector.
     """
@@ -282,6 +285,8 @@ def _check_relationships(data: dict[str, Any], codes: set[str]) -> dict[str, tup
         if (source, target) in pair_owner:
             raise MetadataError(f"{where}: {source} -> {target} is already stored by {pair_owner[(source, target)]}")
         pair_owner[(source, target)] = rel_id
+        if not _CONNECTOR_TYPE.match(_require(raw, "connectorType", str, where)):
+            raise MetadataError(f"{where}: connectorType must be letters and spaces only, e.g. Dependency")
         _require(raw, "description", str, where)
         cardinality = raw.get("cardinality")
         if cardinality is not None:
