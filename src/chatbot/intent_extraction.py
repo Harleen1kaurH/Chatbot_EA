@@ -48,6 +48,9 @@ Rules:
 2. Never write SQL. Never mention database tables, views or column names.
 3. Use only the query types, stereotype codes, attribute names and operators listed below.
 4. anchor.identifier: copy the identifier exactly as the user typed it (e.g. "SREQ 123", "DATA-123").
+   In a relationship, anchor.on is the stereotype the identifier belongs to. Leave "on" out
+   when it is the source (the usual case); set "on" to the target only when the identifier
+   belongs to the target.
 5. columns: include whenever the user names fields to see, in lookups and in searches;
    otherwise leave it out.
 6. Filter values: copy exactly the words or phrases the user typed. Never add synonyms,

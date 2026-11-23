@@ -125,8 +125,8 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
     SELECT lists each stereotype's identifier in route order (UC_TAG, USTP_TAG, ...),
     then the target's other columns (DATA_DESCRIPTION, ...). No DISTINCT: with the
     Connector_Type filter, two objects are linked by at most one connector, so every
-    row is a different combination of objects. The anchor is matched on s0; each
-    filter on the alias of its stereotype (s0 or sN). ORDER BY is the identifier
+    row is a different combination of objects. The anchor is matched on the alias of
+    its stereotype (s0 for the source, sN for the target); each filter likewise. ORDER BY is the identifier
     columns in route order; identifiers are unique per stereotype, so the order is stable.
 
     TODO(include): stereotypes shown alongside the route will be added here. Ones on
@@ -162,8 +162,10 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
 
     conditions = []
     if intent.identifier is not None:
+        anchored = intent.anchor_stereotype
+        alias = aliases[0] if anchored.code == intent.source.code else aliases[last]
         conditions.append(
-            f"s0.{quote_identifier(intent.source.identifier_attribute.column)} = {params.add(intent.identifier)}"
+            f"{alias}.{quote_identifier(anchored.identifier_attribute.column)} = {params.add(intent.identifier)}"
         )
     for rf in intent.filters:
         alias = aliases[0] if rf.stereotype.code == intent.source.code else aliases[last]

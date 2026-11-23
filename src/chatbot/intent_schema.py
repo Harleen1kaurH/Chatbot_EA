@@ -95,7 +95,14 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
             "queryType": {"const": "relationship"},
             "source": {"enum": stereotypes},
             "target": {"enum": stereotypes},
-            "anchor": search["properties"]["anchor"],
+            # Like the search anchor, plus "on": the end the identifier belongs to (source by default).
+            # intent.py checks it is the source or the target.
+            "anchor": {
+                "type": "object",
+                "properties": {"identifier": text, "on": {"enum": sorted(metadata.stereotypes)}},
+                "required": ["identifier"],
+                "additionalProperties": False,
+            },
             "columns": search["properties"]["columns"],
             "filters": {
                 "type": "array",

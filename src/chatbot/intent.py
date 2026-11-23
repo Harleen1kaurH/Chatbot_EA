@@ -4,7 +4,7 @@ Three query types:
   stereotypeSearch    lookup (has anchor) or search (has filters), never both
   describeStereotype  list a stereotype's business attribute names
   relationship        follow links from a source stereotype to a target stereotype;
-                      anchor (on the source), filters (each on the source or target), or both
+                      anchor (on the source or the target), filters (each on the source or target), or both
 
 What: parse_intent() takes the dict the LLM produced and returns a frozen
 StereotypeSearchIntent, DescribeStereotypeIntent or RelationshipIntent.
@@ -86,15 +86,17 @@ class RelationshipFilter:
 class RelationshipIntent:
     """A validated relationship question; the input to the planner and the relationship SQL builder.
 
-    At least one of identifier or filters is set, and both may be. identifier always
-    belongs to the source. columns are the target's, always starting with its
+    At least one of identifier or filters is set, and both may be. identifier belongs
+    to anchor_stereotype: the source by default, or the target when the anchor says
+    "on": <target>. columns are the target's, always starting with its
     identifier and description attributes. via lists stereotypes the route must pass
     through (empty when the question doesn't ask for one); the planner checks that
     such a route exists.
     """
     source: Stereotype
     target: Stereotype
-    identifier: str | None  # resolved against the source, e.g. "UC45"
+    identifier: str | None  # resolved against anchor_stereotype, e.g. "UC45"
+    anchor_stereotype: Stereotype | None  # the source or the target; None when there is no anchor
     filters: tuple[RelationshipFilter, ...]
     columns: tuple[Attribute, ...]  # target attributes: identifier + description first, then any requested
     via: tuple[Stereotype, ...]
@@ -128,6 +130,18 @@ def parse_intent(raw: Any, metadata: Metadata) -> Intent:
     missing = spec.required_fields - set(raw)
     if missing:
         raise IntentError(f"Missing required field(s) for {query_type}: {sorted(missing)}.")
+
+    if query_type == "relationship" and "include" in raw:
+        # TODO(include): planned, not built yet; see the plan doc "Relationship Queries:
+        #   Plan for source, target, include, via and filters". "include" will be a list
+        #   of {"stereotype": <code>, "columns": [<attribute names>]} for every stereotype
+        #   to show (it replaces "columns" here). Defaults: TAG for every stereotype, plus
+        #   DESCRIPTION for the target (or the source when there is no target). Set
+        #   "target" only when rows that don't reach it must be dropped. The source, target,
+        #   includes and via must lie on one approved route; includes extend it at either
+        #   end with LEFT joins, and anything that branches off elsewhere is rejected.
+        #   Previous version (list of codes, LEFT branches): _to_delete/include_v1_backup_2026-11-05/
+        raise IntentError("'include' (showing other linked stereotypes) is not supported yet.")
 
     extra = set(raw) - spec.allowed_fields
     if extra:
@@ -173,7 +187,8 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
     """Check the relationship-specific fields and return a RelationshipIntent.
 
     Order: target is a known stereotype different from the source; at least one of
-    anchor / filters; the anchor resolves against the source; each filter is on the
+    anchor / filters; the anchor resolves against its "on" stereotype (the source by
+    default, or the target); each filter is on the
     source or target; columns belong to the target; via names other stereotypes.
     Whether a route actually exists (with or without via) is the planner's job.
     """
@@ -186,7 +201,9 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
             "A relationship question needs an 'anchor' (an identifier to start from), 'filters', or both."
         )
 
-    identifier = _relationship_anchor(raw["anchor"], source, target, metadata) if "anchor" in raw else None
+    anchor_stereotype, identifier = (
+        _relationship_anchor(raw["anchor"], source, target, metadata) if "anchor" in raw else (None, None)
+    )
     filters = ()
     if "filters" in raw:
         if not isinstance(raw["filters"], list) or not raw["filters"]:
@@ -197,29 +214,58 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
         source=source,
         target=target,
         identifier=identifier,
+        anchor_stereotype=anchor_stereotype,
         filters=filters,
         columns=_columns(raw.get("columns"), target),
         via=_via(raw.get("via"), source, target, metadata) if "via" in raw else (),
     )
 
 
-def _relationship_anchor(raw: Any, source: Stereotype, target: Stereotype, metadata: Metadata) -> str:
-    """Resolve the anchor against the source, like a stereotypeSearch lookup.
+def _relationship_anchor(
+    raw: Any, source: Stereotype, target: Stereotype, metadata: Metadata
+) -> tuple[Stereotype, str]:
+    """Check a relationship anchor {"identifier": ..., "on": ...} and resolve it.
 
-    If it fails because the identifier belongs to the target (e.g. "DATA9" in a
-    UC -> DATA question), say so directly: the LLM most likely swapped source and
-    target, and the general "is a DATA identifier" message wouldn't make that clear.
+    "on" is optional and says which end the identifier belongs to: the source
+    (default) or the target, e.g. "Which USTPs call UC45?" anchors on the target UC.
+    Returns (that stereotype, the identifier in its stored form).
+
+    If the identifier doesn't fit the chosen end but does fit the other one (e.g.
+    "DATA9" with no "on" in a UC -> DATA question), say so and point to "on": the LLM
+    most likely forgot to set it. Otherwise the resolver's own message is kept.
     """
+    if not isinstance(raw, dict) or "identifier" not in raw or set(raw) - {"identifier", "on"}:
+        raise IntentError(
+            "'anchor' must be an object with \"identifier\" and, optionally, \"on\" "
+            "(the stereotype the identifier belongs to)."
+        )
+    if "on" in raw:
+        on = raw["on"]
+        code = on.strip().upper() if isinstance(on, str) else None
+        if code == source.code:
+            stereotype, other = source, target
+        elif code == target.code:
+            stereotype, other = target, source
+        else:
+            raise IntentError(
+                f"The anchor's 'on' is {on!r}, but the anchor can only be on the source ({source.code}) "
+                f"or the target ({target.code})."
+            )
+    else:
+        stereotype, other = source, target
+
+    plain = {"identifier": raw["identifier"]}
     try:
-        return _anchor(raw, source, metadata)
+        return stereotype, _anchor(plain, stereotype, metadata)
     except IdentifierError as original:
         try:
-            _anchor(raw, target, metadata)
+            _anchor(plain, other, metadata)
         except IntentError:
-            raise original from None  # not the target's either: the original error says what is wrong
+            raise original from None  # not the other end's either: the original error says what is wrong
+        where = "on the source" if stereotype is source else "on the target"
         raise IdentifierError(
-            f"The anchor {raw['identifier']!r} is a {target.code} identifier, but the anchor must be an object "
-            f"of the source, {source.code} ({source.display_name})."
+            f"The anchor {raw['identifier']!r} is a {other.code} identifier, but the anchor is {where}, "
+            f"{stereotype.code} ({stereotype.display_name}). Set the anchor's 'on' to {other.code}."
         ) from None
 
 
