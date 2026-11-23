@@ -59,7 +59,7 @@
         "queryType": { "required": true, "description": "Always \"relationship\"." },
         "source": { "required": true, "description": "Stereotype the question starts from." },
         "target": { "required": true, "description": "Stereotype the user wants returned." },
-        "anchor": { "required": false, "description": "{\"identifier\": \"<identifier exactly as the user typed it>\"}. Always an object of the source stereotype." },
+        "anchor": { "required": false, "description": "{\"identifier\": \"<identifier exactly as the user typed it>\", \"on\": \"<stereotype code>\"}. \"on\" is the stereotype the identifier belongs to: the source or the target. Leave \"on\" out when it is the source." },
         "filters": { "required": false, "description": "List of {\"on\", \"attribute\", \"operator\", \"value\"}. \"on\" is the stereotype the filter applies to: the source or the target. Leave attribute out of a CONTAINS_ANY or CONTAINS_ALL filter when the user names no field." },
         "columns": { "required": false, "description": "Attributes of the target the user asked to see. Leave out when the user names no fields." },
         "via": { "required": false, "description": "List of stereotype codes. Fill ONLY if the question explicitly asks for the result to go through a specific stereotype. Otherwise leave it out." }

@@ -6,9 +6,13 @@ A natural-language assistant for Functional Analysts. It turns questions about r
 
 ## Status
 
-Phase 1, Part 1: metadata, intent contract, identifier resolver and SQL builder for single-stereotype lookups and searches. Intent extraction works with a local Ollama model for trying things out; the production LLM is not chosen yet and plugs in the same way. There is no database access, so the output is SQL to review and run in SSMS.
+Phase 1, Part 1: metadata, intent contract, identifier resolver and SQL builder for single-stereotype lookups and searches.
 
-Not built yet: relationship / traceability queries (`relationships.json`, `canonicalpaths.json`, `glossary.json`), SQL execution, and the integration into the host chatbot.
+Relationship (traceability) queries: `relationships.json`, `canonical_paths.json`, the route planner and the relationship SQL builder for the six current stereotypes. The route from the source to the target uses INNER joins (every row must reach the target), following only connectors of the relationship's `connectorType`. Showing other linked stereotypes alongside the result (`include`) is planned but not built yet; an intent with `include` is rejected.
+
+Intent extraction works with a local Ollama model for trying things out; the production LLM is not chosen yet and plugs in the same way. There is no database access, so the output is SQL to review and run in SSMS.
+
+Not built yet: `glossary.json`, SQL execution, a result formatter (merged cells for repeated values), and the integration into the host chatbot.
 
 ## How it works
 
@@ -21,7 +25,8 @@ question ──► intent_extraction ──► raw intent (dict) ──► inten
 
 1. **Extract**: the LLM gets a prompt generated from the metadata and returns an intent JSON. With Ollama, a JSON Schema also forces the reply into a valid shape.
 2. **Validate**: `intent.py` checks the intent against the metadata and rejects anything invalid with a clear message. The LLM's output is never trusted.
-3. **Build**: `sql_builder.py` turns the validated intent into parameterized T-SQL from a fixed template.
+3. **Plan** (relationship questions only): `planner.py` picks the approved route from `canonical_paths.json` and works out the direction of every hop.
+4. **Build**: `sql_builder.py` turns the validated intent (and plan) into parameterized T-SQL from a fixed template.
 
 Every source file starts with a header explaining what it does, how and why, and every function has a docstring.
 
@@ -31,13 +36,16 @@ Every source file starts with a header explaining what it does, how and why, and
 |---|---|
 | `metadata/stereotypes.json` | One entry per stereotype: view, primary key column, identifier and description attributes, identifier prefix and aliases, business attributes. |
 | `metadata/operators.json` | Filter operators: `EQUALS`, `CONTAINS_ANY`, `CONTAINS_ALL`. |
-| `metadata/intents.json` | Query types (`stereotypeSearch`, `describeStereotype`), their fields (and which are required) and example questions. Also used to build the LLM prompt and to validate intents. |
-| `src/chatbot/metadata_loader.py` | Reads all metadata, runs the checks, builds frozen objects (`Metadata`, `Stereotype`, `Attribute`, `Operator`, `QueryType`). Only reads and builds; no rules. |
+| `metadata/intents.json` | Query types (`stereotypeSearch`, `describeStereotype`, `relationship`), their fields (and which are required) and example questions. Also used to build the LLM prompt and to validate intents. |
+| `metadata/relationships.json` | One entry per kind of link stored in `t_connector`, in the direction it is stored (Start → End). |
+| `metadata/canonical_paths.json` | Approved routes between stereotypes, as lists of relationship IDs; one default per pair. |
+| `src/chatbot/metadata_loader.py` | Reads all metadata, runs the checks, builds frozen objects (`Metadata`, `Stereotype`, `Attribute`, `Operator`, `QueryType`, `Relationship`, `CanonicalPath`) and the route indexes. Only reads and builds; no rules. |
 | `src/chatbot/metadata_checks.py` | Every rule the metadata files must follow. Used at startup and by `check_metadata`. |
 | `src/chatbot/check_metadata.py` | Pre-deploy command that runs the metadata checks without starting the chatbot. |
 | `src/chatbot/intent.py` | The intent contract. Checks a raw intent and turns it into frozen typed objects, or rejects it with a clear message. |
 | `src/chatbot/identifier_resolver.py` | `SREQ 123`, `SREQ-0123`, `123` → `SREQ123`. |
-| `src/chatbot/sql_builder.py` | Builds parameterized T-SQL plus a readable copy for review. |
+| `src/chatbot/planner.py` | Relationship questions: chooses the route (default, reversed, or through `via`) and the direction of each hop. |
+| `src/chatbot/sql_builder.py` | Builds parameterized T-SQL plus a readable copy for review; relationship queries join through `t_connector`. |
 | `src/chatbot/describe.py` | Answers "what columns does X have" from metadata, with business names only. |
 | `src/chatbot/intent_extraction.py` | Builds the LLM prompt from metadata and parses the LLM's reply. The LLM is passed in as a function. |
 | `src/chatbot/intent_schema.py` | Generates a JSON Schema for intents from metadata. Optional: only useful if the LLM supports structured output (Ollama does). |
