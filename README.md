@@ -208,7 +208,7 @@ PYTHONPATH=src python3 -m chatbot.ask --model llama3.1:8b "Give me use cases whi
 PYTHONPATH=src python3 -m chatbot.ask --show-prompt    # see exactly what the LLM is told
 ```
 
-It prints the intent the LLM produced, then the SQL (or the attribute list). If the intent breaks a rule, it says why and builds no SQL. Defaults can be set with `OLLAMA_MODEL` and `OLLAMA_HOST`.
+It prints the intent the LLM produced, then the SQL (or the attribute list). If the intent breaks a rule, it says why and builds no SQL. Defaults can be set with `OLLAMA_MODEL`, `OLLAMA_HOST` and `OLLAMA_NUM_CTX` (the context window, 16384 tokens by default; Ollama's own default is too small for the prompt and would silently cut off its start, where the rules are).
 
 
 `ask.py` calls `extract_intent` and `handle_intent` separately (instead of `handle_question`) so it can print the intent in between. That shows whether a wrong answer comes from the LLM or from later in the pipeline.

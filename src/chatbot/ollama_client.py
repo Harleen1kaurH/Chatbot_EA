@@ -7,9 +7,13 @@ Uses Ollama's chat API (POST {host}/api/chat) with:
   * format = the intent JSON Schema, so the reply is forced into a valid shape
   * temperature = 0, so the same question gives the same intent
   * stream = false, so the whole reply comes back at once
+  * num_ctx = the context window in tokens. Ollama's default (2048-4096, depending
+    on the version) is smaller than our system prompt, and Ollama silently drops the
+    start of a prompt that doesn't fit: that is where the rules are. So it is set
+    explicitly, and a reply whose prompt filled the window is rejected.
 
 Only the Python standard library is used. Defaults can be set with the
-OLLAMA_HOST and OLLAMA_MODEL environment variables.
+OLLAMA_HOST, OLLAMA_MODEL and OLLAMA_NUM_CTX environment variables.
 
 Why: Ollama is the local stand-in for the production LLM during development.
 It is wrapped in the same (system_prompt, question) -> text function shape as
@@ -37,6 +41,7 @@ from .metadata_loader import Metadata
 DEFAULT_HOST = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:7b"
 DEFAULT_TIMEOUT_SECONDS = 180
+DEFAULT_NUM_CTX = 16384  # the prompt is ~6k tokens today; leaves room for metadata to grow
 
 
 def make_ollama_llm(
@@ -44,11 +49,13 @@ def make_ollama_llm(
     model: str | None = None,
     host: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    num_ctx: int | None = None,
 ) -> LLMCall:
     """Return an LLM function (system_prompt, question) -> reply text that calls Ollama.
 
     model and host fall back to $OLLAMA_MODEL / $OLLAMA_HOST, then the defaults; a
-    host without http:// gets it added. The JSON Schema is built once here, not on
+    host without http:// gets it added. num_ctx falls back to $OLLAMA_NUM_CTX, then
+    DEFAULT_NUM_CTX. The JSON Schema is built once here, not on
     every question. The returned function carries .model and .host so the CLI can
     show which model answered.
     """
@@ -56,6 +63,7 @@ def make_ollama_llm(
     host = (host or os.environ.get("OLLAMA_HOST") or DEFAULT_HOST).rstrip("/")
     if not host.startswith(("http://", "https://")):
         host = "http://" + host
+    num_ctx = num_ctx or int(os.environ.get("OLLAMA_NUM_CTX") or DEFAULT_NUM_CTX)
     schema = build_intent_schema(metadata)
 
     def call(system_prompt: str, question: str) -> str:
@@ -68,9 +76,16 @@ def make_ollama_llm(
             ],
             "format": schema,
             "stream": False,
-            "options": {"temperature": 0},
+            "options": {"temperature": 0, "num_ctx": num_ctx},
         }
         reply = _post_json(f"{host}/api/chat", body, timeout, model, host)
+        used = reply.get("prompt_eval_count")
+        if isinstance(used, int) and used >= num_ctx:
+            # Ollama cut the prompt to fit, so the model answered without some of the rules.
+            raise IntentExtractionError(
+                f"The prompt filled Ollama's whole context window ({num_ctx} tokens), so part of it was "
+                "cut off. Raise OLLAMA_NUM_CTX."
+            )
         content = (reply.get("message") or {}).get("content")
         if not isinstance(content, str):
             raise IntentExtractionError("Ollama's reply had no message content.")
@@ -78,6 +93,7 @@ def make_ollama_llm(
 
     call.model = model  # type: ignore[attr-defined]  # shown by the CLI
     call.host = host  # type: ignore[attr-defined]
+    call.num_ctx = num_ctx  # type: ignore[attr-defined]
     return call
 
 

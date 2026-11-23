@@ -15,6 +15,8 @@ the graph or invents a route.
   2. If the route is walked backwards, reverse the order of its steps.
   3. Walk the steps from the source. At each step the current stereotype is either
      the relationship's stored Start (walk forward) or its stored End (walk backward).
+  4. Check every filter's stereotype is on the route exactly once. Filters never
+     change which route is chosen: only source, target and via do.
 
 Why: the joins decide whether an analysis is right, so they come from approved
 metadata, never from the LLM. The planner knows nothing about views, columns,
@@ -63,13 +65,34 @@ class Plan:
 def plan_route(intent: RelationshipIntent, metadata: Metadata) -> Plan:
     """Choose the route for a relationship intent and work out the direction of every hop.
 
-    Raises RouteError when no approved route fits, or when 'via' leaves several routes
-    and none of them is the default.
+    Raises RouteError when no approved route fits, when 'via' leaves several routes
+    and none of them is the default, or when a filter's stereotype is not on the route
+    (or is on it twice, so it's unclear which one the filter means).
     """
     source, target = intent.source.code, intent.target.code
     path, is_reversed = _choose_path(source, target, intent.via, metadata)
     steps = tuple(reversed(path.steps)) if is_reversed else path.steps
-    return Plan(path=path, reversed=is_reversed, hops=_hops(source, steps, metadata))
+    plan = Plan(path=path, reversed=is_reversed, hops=_hops(source, steps, metadata))
+    _check_filters_on_route(intent, plan)
+    return plan
+
+
+def _check_filters_on_route(intent: RelationshipIntent, plan: Plan) -> None:
+    """Every filter's stereotype must appear on the route exactly once."""
+    codes = [s.code for s in plan.stereotypes]
+    route = " -> ".join(codes)
+    for i, rf in enumerate(intent.filters):
+        count = codes.count(rf.stereotype.code)
+        if count == 0:
+            raise RouteError(
+                f"filters[{i}] is on {rf.stereotype.code}, but the route from {intent.source.code} "
+                f"to {intent.target.code} ({route}) doesn't pass through {rf.stereotype.code}."
+            )
+        if count > 1:
+            raise RouteError(
+                f"filters[{i}] is on {rf.stereotype.code}, but the route ({route}) passes through "
+                f"{rf.stereotype.code} {count} times, so it's unclear which one the filter means."
+            )
 
 
 # ---------------------------------------------------------------- choosing the route

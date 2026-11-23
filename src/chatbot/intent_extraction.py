@@ -48,6 +48,12 @@ Rules:
 2. Never write SQL. Never mention database tables, views or column names.
 3. Use only the query types, stereotype codes, attribute names and operators listed below.
 4. anchor.identifier: copy the identifier exactly as the user typed it (e.g. "SREQ 123", "DATA-123").
+   An identifier is a stereotype code or name followed by a number (SREQ-123, UC45,
+   DATA 9, "use case 12"). An identifier the user names ALWAYS goes in "anchor", never
+   in a filter: never write an EQUALS filter, or any other filter, whose value is an
+   identifier. Filters are only for words to find in text or for field values such as
+   a status. Wrong: "filters": [{"on": "SREQ", "operator": "EQUALS", "value": "SREQ-123"}].
+   Right: "anchor": {"identifier": "SREQ-123"}.
    In a relationship, anchor.on is the stereotype the identifier belongs to. Leave "on" out
    when it is the source (the usual case); set "on" to the target only when the identifier
    belongs to the target.
@@ -75,8 +81,10 @@ Rules:
 13. relationship: source is the stereotype the question starts from, target is the
    stereotype whose objects the user wants returned. Rules 9 and 11 apply to both.
 14. relationship filters: every filter must have "on": the stereotype code it applies
-   to, which must be the source or the target. A filter with no "attribute" searches
-   the description of the "on" stereotype.
+   to. It is usually the source or the target, but it can be a stereotype between
+   them when the question puts the words on it (e.g. "through user steps that mention
+   birth" -> "on": "USTP"). A filter with no "attribute" searches the description of
+   the "on" stereotype. A filter's "on" never goes into via.
 15. via: fill it only and only if the question explicitly asks for the result to go
    through a specific stereotype (e.g. "through its steps", "via SREQ"). In every other
    case leave it out, including when the stereotype is only the source, the target,

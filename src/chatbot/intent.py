@@ -75,8 +75,9 @@ class DescribeStereotypeIntent:
 class RelationshipFilter:
     """A filter in a relationship intent: which stereotype it applies to, and the filter itself.
 
-    stereotype is always the intent's source or target (the "on" field). filter is
-    the same Filter a stereotypeSearch uses, already checked against that stereotype.
+    stereotype is the "on" field: any known stereotype. The planner checks that it is
+    on the chosen route (the source, the target, or one between them). filter is the
+    same Filter a stereotypeSearch uses, already checked against that stereotype.
     """
     stereotype: Stereotype
     filter: Filter
@@ -188,9 +189,9 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
 
     Order: target is a known stereotype different from the source; at least one of
     anchor / filters; the anchor resolves against its "on" stereotype (the source by
-    default, or the target); each filter is on the
-    source or target; columns belong to the target; via names other stereotypes.
-    Whether a route actually exists (with or without via) is the planner's job.
+    default, or the target); each filter's "on" is a known stereotype; columns belong
+    to the target; via names other stereotypes. Whether a route actually exists (with
+    or without via), and whether every filter's stereotype is on it, is the planner's job.
     """
     target = _stereotype(raw.get("target"), metadata)
     if target.code == source.code:
@@ -208,7 +209,7 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
     if "filters" in raw:
         if not isinstance(raw["filters"], list) or not raw["filters"]:
             raise IntentError("'filters' must be a non-empty list.")
-        filters = tuple(_relationship_filter(f, i, source, target, metadata) for i, f in enumerate(raw["filters"]))
+        filters = tuple(_relationship_filter(f, i, metadata) for i, f in enumerate(raw["filters"]))
 
     return RelationshipIntent(
         source=source,
@@ -269,28 +270,26 @@ def _relationship_anchor(
         ) from None
 
 
-def _relationship_filter(raw: Any, index: int, source: Stereotype, target: Stereotype, metadata: Metadata) -> RelationshipFilter:
-    """Check a filter's "on" (the source or target code), then check the rest exactly like a search filter.
+def _relationship_filter(raw: Any, index: int, metadata: Metadata) -> RelationshipFilter:
+    """Check a filter's "on" (a known stereotype code), then check the rest exactly like a search filter.
 
-    The filter is validated against the stereotype in "on", so a filter with no
-    attribute searches that stereotype's description.
+    "on" may be the source, the target or a stereotype between them; the route isn't
+    known yet, so the planner checks that the stereotype is on it. The filter is
+    validated against the stereotype in "on", so a filter with no attribute searches
+    that stereotype's description.
     """
     where = f"filters[{index}]"
     if not isinstance(raw, dict):
         raise IntentError(f"{where} must be an object.")
     if "on" not in raw:
-        raise IntentError(f"{where} needs 'on': the stereotype it applies to, {source.code} or {target.code}.")
-    on = raw["on"]
-    code = on.strip().upper() if isinstance(on, str) else None
-    if code == source.code:
-        stereotype = source
-    elif code == target.code:
-        stereotype = target
-    else:
         raise IntentError(
-            f"{where}: 'on' is {on!r}, but a filter can only apply to the source ({source.code}) "
-            f"or the target ({target.code})."
+            f"{where} needs 'on': the stereotype it applies to (the source, the target, "
+            "or one on the route between them)."
         )
+    try:
+        stereotype = _stereotype(raw["on"], metadata)
+    except IntentError as err:
+        raise IntentError(f"{where}: 'on' is {raw['on']!r}. {err}") from None
     rest = {k: v for k, v in raw.items() if k != "on"}
     return RelationshipFilter(stereotype=stereotype, filter=_filter(rest, index, stereotype, metadata))
 
