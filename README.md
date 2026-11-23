@@ -8,7 +8,7 @@ A natural-language assistant for Functional Analysts. It turns questions about r
 
 Phase 1, Part 1: metadata, intent contract, identifier resolver and SQL builder for single-stereotype lookups and searches.
 
-Relationship (traceability) queries: `relationships.json`, `canonical_paths.json`, the route planner and the relationship SQL builder for the six current stereotypes. The route from the source to the target uses INNER joins (every row must reach the target), following only connectors of the relationship's `connectorType`. Showing other linked stereotypes alongside the result (`include`) is planned but not built yet; an intent with `include` is rejected.
+Relationship (traceability) queries: `relationships.json`, `canonical_paths.json`, the route planner and the relationship SQL builder for the six current stereotypes. The route from the source to the target uses INNER joins (every row must reach the target), following only connectors of the relationship's `connectorType`. Each stereotype on the route is shown with its TAG, and the target also with its DESCRIPTION. Extra fields are asked for with `include`, one entry per stereotype on the route, e.g. `"include": [{"stereotype": "USTP", "columns": ["DESCRIPTION"]}]` (an entry with no `columns` adds the description). Relationships have no `columns` field. Showing stereotypes off the route (LEFT-joined branches) is planned but not built yet, and is rejected.
 
 Intent extraction works with a local Ollama model for trying things out; the production LLM is not chosen yet and plugs in the same way. There is no database access, so the output is SQL to review and run in SSMS.
 

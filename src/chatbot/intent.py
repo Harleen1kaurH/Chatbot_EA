@@ -4,7 +4,8 @@ Three query types:
   stereotypeSearch    lookup (has anchor) or search (has filters), never both
   describeStereotype  list a stereotype's business attribute names
   relationship        follow links from a source stereotype to a target stereotype;
-                      anchor (on the source or the target), filters (each on the source or target), or both
+                      anchor (on the source or the target), filters (each on a stereotype of
+                      the route), or both; include adds fields of stereotypes on the route
 
 What: parse_intent() takes the dict the LLM produced and returns a frozen
 StereotypeSearchIntent, DescribeStereotypeIntent or RelationshipIntent.
@@ -84,13 +85,27 @@ class RelationshipFilter:
 
 
 @dataclass(frozen=True)
+class Include:
+    """One entry of a relationship's "include": extra fields to show for a stereotype on the route.
+
+    columns are the requested attributes, in the order given, with no duplicates; an
+    include that names no columns gets the stereotype's description. The defaults (TAG
+    for every stereotype, plus DESCRIPTION for the target) are added by the SQL
+    builder, so an include only ever adds fields. The planner checks the stereotype is
+    on the route.
+    """
+    stereotype: Stereotype
+    columns: tuple[Attribute, ...]
+
+
+@dataclass(frozen=True)
 class RelationshipIntent:
     """A validated relationship question; the input to the planner and the relationship SQL builder.
 
     At least one of identifier or filters is set, and both may be. identifier belongs
     to anchor_stereotype: the source by default, or the target when the anchor says
-    "on": <target>. columns are the target's, always starting with its
-    identifier and description attributes. via lists stereotypes the route must pass
+    "on": <target>. include lists extra fields per stereotype (empty when the question
+    asks for none); there is no "columns" in a relationship. via lists stereotypes the route must pass
     through (empty when the question doesn't ask for one); the planner checks that
     such a route exists.
     """
@@ -99,7 +114,7 @@ class RelationshipIntent:
     identifier: str | None  # resolved against anchor_stereotype, e.g. "UC45"
     anchor_stereotype: Stereotype | None  # the source or the target; None when there is no anchor
     filters: tuple[RelationshipFilter, ...]
-    columns: tuple[Attribute, ...]  # target attributes: identifier + description first, then any requested
+    include: tuple[Include, ...]  # extra fields to show, per stereotype on the route
     via: tuple[Stereotype, ...]
 
 
@@ -132,17 +147,13 @@ def parse_intent(raw: Any, metadata: Metadata) -> Intent:
     if missing:
         raise IntentError(f"Missing required field(s) for {query_type}: {sorted(missing)}.")
 
-    if query_type == "relationship" and "include" in raw:
-        # TODO(include): planned, not built yet; see the plan doc "Relationship Queries:
-        #   Plan for source, target, include, via and filters". "include" will be a list
-        #   of {"stereotype": <code>, "columns": [<attribute names>]} for every stereotype
-        #   to show (it replaces "columns" here). Defaults: TAG for every stereotype, plus
-        #   DESCRIPTION for the target (or the source when there is no target). Set
-        #   "target" only when rows that don't reach it must be dropped. The source, target,
-        #   includes and via must lie on one approved route; includes extend it at either
-        #   end with LEFT joins, and anything that branches off elsewhere is rejected.
-        #   Previous version (list of codes, LEFT branches): _to_delete/include_v1_backup_2026-11-05/
-        raise IntentError("'include' (showing other linked stereotypes) is not supported yet.")
+    if query_type == "relationship" and "columns" in raw:
+        # Relationships name every field under the stereotype it belongs to, in "include".
+        # One way to ask, so the LLM can't mix the two.
+        raise IntentError(
+            "'columns' isn't used in a relationship. Put the fields under 'include', with the "
+            'stereotype they belong to, e.g. "include": [{"stereotype": "DATA", "columns": ["STATUS"]}].'
+        )
 
     extra = set(raw) - spec.allowed_fields
     if extra:
@@ -189,9 +200,10 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
 
     Order: target is a known stereotype different from the source; at least one of
     anchor / filters; the anchor resolves against its "on" stereotype (the source by
-    default, or the target); each filter's "on" is a known stereotype; columns belong
-    to the target; via names other stereotypes. Whether a route actually exists (with
-    or without via), and whether every filter's stereotype is on it, is the planner's job.
+    default, or the target); each filter's "on" is a known stereotype; each include's
+    columns belong to its stereotype; via names other stereotypes. Whether a route
+    actually exists (with or without via), and whether every filter's and include's
+    stereotype is on it, is the planner's job.
     """
     target = _stereotype(raw.get("target"), metadata)
     if target.code == source.code:
@@ -217,7 +229,7 @@ def _relationship(raw: dict[str, Any], source: Stereotype, metadata: Metadata) -
         identifier=identifier,
         anchor_stereotype=anchor_stereotype,
         filters=filters,
-        columns=_columns(raw.get("columns"), target),
+        include=_include(raw["include"], metadata) if "include" in raw else (),
         via=_via(raw.get("via"), source, target, metadata) if "via" in raw else (),
     )
 
@@ -292,6 +304,46 @@ def _relationship_filter(raw: Any, index: int, metadata: Metadata) -> Relationsh
         raise IntentError(f"{where}: 'on' is {raw['on']!r}. {err}") from None
     rest = {k: v for k, v in raw.items() if k != "on"}
     return RelationshipFilter(stereotype=stereotype, filter=_filter(rest, index, stereotype, metadata))
+
+
+def _include(raw: Any, metadata: Metadata) -> tuple[Include, ...]:
+    """Check "include": a non-empty list of {"stereotype": <code>, "columns": [<attribute names>]}.
+
+    Each stereotype may appear once. "columns" is optional (left out: the description)
+    and, when given, a non-empty list of that stereotype's attributes with no repeats.
+
+    TODO(include, steps 6-8): includes off the route (LEFT-joined branches that extend
+    it at either end), filters and anchors on them, and via with include. See the plan
+    doc "Relationship Queries: Plan for source, target, include, via and filters".
+    Previous version (list of codes, LEFT branches): _to_delete/include_v1_backup_2026-11-05/
+    """
+    if not isinstance(raw, list) or not raw:
+        raise IntentError("'include' must be a non-empty list, or left out.")
+    result = []
+    seen: set[str] = set()
+    for i, entry in enumerate(raw):
+        where = f"include[{i}]"
+        if not isinstance(entry, dict) or "stereotype" not in entry or set(entry) - {"stereotype", "columns"}:
+            raise IntentError(f'{where} must be an object with "stereotype" and, optionally, "columns".')
+        try:
+            stereotype = _stereotype(entry["stereotype"], metadata)
+        except IntentError as err:
+            raise IntentError(f"{where}: 'stereotype' is {entry['stereotype']!r}. {err}") from None
+        if stereotype.code in seen:
+            raise IntentError(f"'include' lists {stereotype.code} twice. Put all its fields in one entry.")
+        seen.add(stereotype.code)
+
+        if "columns" not in entry:
+            columns: tuple[Attribute, ...] = (stereotype.description_attribute,)
+        else:
+            names = entry["columns"]
+            if not isinstance(names, list) or not names:
+                raise IntentError(f"{where}: 'columns' must be a non-empty list of attribute names, or left out.")
+            columns = tuple(_attribute(name, stereotype) for name in names)
+            if len(set(columns)) != len(columns):
+                raise IntentError(f"{where}: 'columns' lists the same attribute twice: {[a.name for a in columns]}.")
+        result.append(Include(stereotype=stereotype, columns=columns))
+    return tuple(result)
 
 
 def _via(raw: Any, source: Stereotype, target: Stereotype, metadata: Metadata) -> tuple[Stereotype, ...]:

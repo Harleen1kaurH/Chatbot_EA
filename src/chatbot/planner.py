@@ -15,8 +15,9 @@ the graph or invents a route.
   2. If the route is walked backwards, reverse the order of its steps.
   3. Walk the steps from the source. At each step the current stereotype is either
      the relationship's stored Start (walk forward) or its stored End (walk backward).
-  4. Check every filter's stereotype is on the route exactly once. Filters never
-     change which route is chosen: only source, target and via do.
+  4. Check every filter's and include's stereotype is on the route exactly once.
+     Filters and includes never change which route is chosen: only source, target
+     and via do.
 
 Why: the joins decide whether an analysis is right, so they come from approved
 metadata, never from the LLM. The planner knows nothing about views, columns,
@@ -66,14 +67,15 @@ def plan_route(intent: RelationshipIntent, metadata: Metadata) -> Plan:
     """Choose the route for a relationship intent and work out the direction of every hop.
 
     Raises RouteError when no approved route fits, when 'via' leaves several routes
-    and none of them is the default, or when a filter's stereotype is not on the route
-    (or is on it twice, so it's unclear which one the filter means).
+    and none of them is the default, or when a filter's or include's stereotype is not
+    on the route (or is on it twice, so it's unclear which one is meant).
     """
     source, target = intent.source.code, intent.target.code
     path, is_reversed = _choose_path(source, target, intent.via, metadata)
     steps = tuple(reversed(path.steps)) if is_reversed else path.steps
     plan = Plan(path=path, reversed=is_reversed, hops=_hops(source, steps, metadata))
     _check_filters_on_route(intent, plan)
+    _check_includes_on_route(intent, plan)
     return plan
 
 
@@ -92,6 +94,28 @@ def _check_filters_on_route(intent: RelationshipIntent, plan: Plan) -> None:
             raise RouteError(
                 f"filters[{i}] is on {rf.stereotype.code}, but the route ({route}) passes through "
                 f"{rf.stereotype.code} {count} times, so it's unclear which one the filter means."
+            )
+
+
+def _check_includes_on_route(intent: RelationshipIntent, plan: Plan) -> None:
+    """Every included stereotype must appear on the route exactly once.
+
+    TODO(include, step 6): an include off the route will extend it with LEFT joins.
+    """
+    codes = [s.code for s in plan.stereotypes]
+    route = " -> ".join(codes)
+    for i, inc in enumerate(intent.include):
+        code = inc.stereotype.code
+        count = codes.count(code)
+        if count == 0:
+            raise RouteError(
+                f"include[{i}] is {code}, but the route from {intent.source.code} to {intent.target.code} "
+                f"({route}) doesn't pass through {code}. Showing stereotypes off the route is not supported yet."
+            )
+        if count > 1:
+            raise RouteError(
+                f"include[{i}] is {code}, but the route ({route}) passes through {code} {count} times, "
+                "so it's unclear which one is meant."
             )
 
 

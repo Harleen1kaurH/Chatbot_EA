@@ -57,8 +57,15 @@ Rules:
    In a relationship, anchor.on is the stereotype the identifier belongs to. Leave "on" out
    when it is the source (the usual case); set "on" to the target only when the identifier
    belongs to the target.
-5. columns: include whenever the user names fields to see, in lookups and in searches;
-   otherwise leave it out.
+5. Fields to see: in a lookup or search, put them in "columns". A relationship has no
+   "columns": put them in "include", one entry per stereotype, with the fields under
+   the stereotype they belong to, e.g. "the status of the data and the description of
+   the steps" -> "include": [{"stereotype": "DATA", "columns": ["STATUS"]},
+   {"stereotype": "USTP", "columns": ["DESCRIPTION"]}]. "Show the X column of Y" always
+   means an include entry for Y with X in its columns, e.g. "show the requirement trace
+   column of use case step" -> "include": [{"stereotype": "USTP", "columns":
+   ["HAS_REQUIREMENT_TRACE"]}]. Leave "include" out when the user names no fields;
+   every stereotype on the route is shown with its TAG anyway.
 6. Filter values: copy exactly the words or phrases the user typed. Never add synonyms,
    similar words, spelling variants or abbreviations of your own.
 7. CONTAINS_ANY / CONTAINS_ALL: leave out "attribute" when the user does not name a field;

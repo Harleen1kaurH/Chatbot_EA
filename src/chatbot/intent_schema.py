@@ -32,7 +32,7 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
 
       search        stereotypeSearch with anchor / columns / filters
       describe      describeStereotype with source
-      relationship  relationship with source / target / anchor / filters (each with "on") / columns / via
+      relationship  relationship with source / target / anchor / filters (each with "on") / include / via
       unsupported  {"queryType": "unsupported", "reason": ...}, the LLM's way to say no
 
     Allowed names (stereotypes, attributes, operators) and required fields come from
@@ -89,6 +89,10 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
         "additionalProperties": False,
     }
 
+    # Property order matters: Ollama turns the schema into a grammar that only allows
+    # optional fields in the order listed here. Once the model writes "filters", it can
+    # no longer write a field listed before it. So the order is the natural order of an
+    # intent (and of the examples in intents.json): anchor, filters, include, via.
     relationship = {
         "type": "object",
         "properties": {
@@ -103,7 +107,6 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
                 "required": ["identifier"],
                 "additionalProperties": False,
             },
-            "columns": search["properties"]["columns"],
             "filters": {
                 "type": "array",
                 "minItems": 1,
@@ -115,6 +118,20 @@ def build_intent_schema(metadata: Metadata) -> dict[str, Any]:
                         **search["properties"]["filters"]["items"]["properties"],
                     },
                     "required": ["on", "operator", "value"],
+                    "additionalProperties": False,
+                },
+            },
+            # Extra fields per stereotype; intent.py checks each column belongs to its stereotype.
+            "include": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "stereotype": {"enum": sorted(metadata.stereotypes)},
+                        "columns": search["properties"]["columns"],
+                    },
+                    "required": ["stereotype"],
                     "additionalProperties": False,
                 },
             },

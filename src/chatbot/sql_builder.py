@@ -130,9 +130,11 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
     its stereotype's position on the route (the planner checked it appears exactly once). ORDER BY is the identifier
     columns in route order; identifiers are unique per stereotype, so the order is stable.
 
-    TODO(include): stereotypes shown alongside the route will be added here. Ones on
-    the route only add columns; ones past the target become LEFT-joined branches from
-    the target. See the TODO in intent.py for the planned rules.
+    Columns: TAG for every stereotype on the route, plus DESCRIPTION for the target,
+    then the fields each include asks for, at its stereotype's position (a field
+    already shown is not repeated). Names are <CODE>_<ATTRIBUTE>, e.g. USTP_DESCRIPTION.
+
+    TODO(include, step 6): stereotypes off the route will become LEFT-joined branches.
     """
     params = _Params()
     stereotypes = plan.stereotypes
@@ -140,11 +142,18 @@ def build_relationship_sql(intent: RelationshipIntent, plan: Plan) -> BuiltQuery
     aliases = {0: "s0", last: f"s{last}"}
 
     tags = _unique_names([f"{st.code}_{st.identifier_attribute.name}" for st in stereotypes])
-    select = [f"s{i}.{quote_identifier(st.identifier_attribute.column)} AS {tags[i]}" for i, st in enumerate(stereotypes)]
-    target = stereotypes[last]
-    for attr in intent.columns:
-        if attr != target.identifier_attribute:
-            select.append(f"s{last}.{quote_identifier(attr.column)} AS {target.code}_{attr.name}")
+    included = {inc.stereotype.code: inc.columns for inc in intent.include}
+    select = []
+    for i, st in enumerate(stereotypes):
+        select.append(f"s{i}.{quote_identifier(st.identifier_attribute.column)} AS {tags[i]}")
+        shown = [st.identifier_attribute]
+        if i == last:
+            shown.append(st.description_attribute)
+            select.append(f"s{i}.{quote_identifier(st.description_attribute.column)} AS {st.code}_{st.description_attribute.name}")
+        for attr in included.get(st.code, ()):
+            if attr not in shown:
+                shown.append(attr)
+                select.append(f"s{i}.{quote_identifier(attr.column)} AS {st.code}_{attr.name}")
 
     lines = [f"FROM {quote_identifier(stereotypes[0].view)} s0"]
     for i, hop in enumerate(plan.hops, start=1):

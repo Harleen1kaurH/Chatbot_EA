@@ -61,7 +61,7 @@
         "target": { "required": true, "description": "Stereotype the user wants returned." },
         "anchor": { "required": false, "description": "{\"identifier\": \"<identifier exactly as the user typed it>\", \"on\": \"<stereotype code>\"}. \"on\" is the stereotype the identifier belongs to: the source or the target. Leave \"on\" out when it is the source." },
         "filters": { "required": false, "description": "List of {\"on\", \"attribute\", \"operator\", \"value\"}. \"on\" is the stereotype the filter applies to: the source, the target, or a stereotype between them on the route. Never put an identifier (e.g. SREQ-123) in a filter: it goes in anchor. Leave attribute out of a CONTAINS_ANY or CONTAINS_ALL filter when the user names no field." },
-        "columns": { "required": false, "description": "Attributes of the target the user asked to see. Leave out when the user names no fields." },
+        "include": { "required": false, "description": "List of {\"stereotype\", \"columns\"}: extra fields the user asked to see, each under the stereotype it belongs to (the source, the target or one between them). Leave out when the user names no fields. There is no \"columns\" field in a relationship." },
         "via": { "required": false, "description": "List of stereotype codes. Fill ONLY if the question explicitly asks for the result to go through a specific stereotype. Otherwise leave it out." }
       },
       "examples": [
@@ -91,7 +91,15 @@
         },
         {
           "question": "Give me the status of the data used by UC45",
-          "intent": { "queryType": "relationship", "source": "UC", "target": "DATA", "anchor": { "identifier": "UC45" }, "columns": ["STATUS"] }
+          "intent": { "queryType": "relationship", "source": "UC", "target": "DATA", "anchor": { "identifier": "UC45" }, "include": [ { "stereotype": "DATA", "columns": ["STATUS"] } ] }
+        },
+        {
+          "question": "Give me the use cases linked to SREQ-123 whose steps contain 'name'. Show the requirement trace column of the steps",
+          "intent": { "queryType": "relationship", "source": "SREQ", "target": "UC", "anchor": { "identifier": "SREQ-123" }, "filters": [ { "on": "USTP", "operator": "CONTAINS_ANY", "value": ["name"] } ], "include": [ { "stereotype": "USTP", "columns": ["HAS_REQUIREMENT_TRACE"] } ] }
+        },
+        {
+          "question": "Which data does UC45 use? Also show the description of each user step",
+          "intent": { "queryType": "relationship", "source": "UC", "target": "DATA", "anchor": { "identifier": "UC45" }, "include": [ { "stereotype": "USTP", "columns": ["DESCRIPTION"] } ] }
         },
         {
           "question": "Which data does UC45 use, via its steps?",
